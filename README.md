@@ -1,9 +1,10 @@
-# Jade Jungle Goblins & Quest-style UI
+# Jade Jungle Goblins, Quest-style UI & Pistol
 
-This repo has two drop-in packages:
+This repo has three drop-in packages. Each one is a single file you drag into **ReplicatedStorage** in Roblox Studio:
 
 - **`JadeJungleGoblins.rbxmx`** adds animated goblin enemies (see below).
 - **`QuestThemeUI.rbxmx`** restyles your Bag and Tutorial screens to look like the Quests window (see [Quest-style UI](#quest-style-ui)).
+- **`RealisticPistol.rbxmx`** adds a detailed, working pistol that every player spawns with (see [Pistol](#pistol)).
 
 ## Jade Jungle Goblins
 
@@ -84,3 +85,26 @@ These goblins are built from smooth rounded parts, so they look like the referen
 - **Your screens are named differently?** Edit the `TARGET_GUIS` list at the top of the `ApplyQuestTheme` script.
 - **Want to keep one element exactly as it was?** Give it the attribute `NoTheme` = `true`.
 - **Changes only show in Play mode,** not while you're editing in Studio.
+
+## Pistol
+
+`RealisticPistol.rbxmx` adds a detailed polymer-frame handgun that every player spawns with.
+
+![Pistol preview](docs/pistol-preview.png)
+
+*Three views of the pistol, plus the reload animation (bottom right): slide locked back, magazine dropping out.*
+
+**Install:** drag `RealisticPistol.rbxmx` into **ReplicatedStorage** and press Play. The pistol shows up in your hotbar. Click or tap to shoot, and press **R** (or the on-screen button on mobile) to reload.
+
+**What it does:**
+- **Model.** Steel slide with rear serrations, an ejection port showing the barrel, sights with white dots, an accessory rail, a squared trigger guard, a bladed trigger, an angled grip with stippled panels and a removable magazine.
+- **Animation.** The slide moves back on every shot and locks back when the gun is empty, and the trigger pulls. On reload, the magazine drops out and a new one goes in.
+- **Effects.** Muzzle flash with a light, smoke, flying brass casings, bullet tracers, sparks and bullet holes where shots land, and camera recoil.
+- **HUD.** A crosshair that spreads as you fire, a hit marker (red for headshots), an ammo counter with a reload bar, and a reload button on mobile.
+- **Fair play.** The server checks ammo, fire rate and range, and deals the damage, so players can't cheat them. Headshots do double damage, and it works on the goblins too.
+
+**Settings:** open `RealisticPistol > Config` to change damage, magazine size, fire rate, reload time, recoil, spread, full-auto mode, team damage and size.
+
+**Sounds:** Roblox doesn't include gun sounds, so the pistol is silent until you add some. Find sounds in the Creator Store (search "pistol shot", "pistol reload", "dry fire") and paste their IDs into `Config.Sounds`, like `Fire = "rbxassetid://123456"`.
+
+**Don't want everyone to spawn with it?** Set `GiveOnSpawn = false`. The tool then sits in the `RealisticPistol` folder for you to give out yourself, for example from a shop.

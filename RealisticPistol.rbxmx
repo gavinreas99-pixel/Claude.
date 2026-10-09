@@ -1,0 +1,1139 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<Item class="Folder" referent="RBX0">
+		<Properties><string name="Name">RealisticPistol</string></Properties>
+		<Item class="ModuleScript" referent="RBX1">
+			<Properties>
+				<string name="Name">Config</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Pistol settings. Change these numbers to tune the gun.
+]]
+
+return {
+	ToolName = "Pistol",
+	GiveOnSpawn = true, -- every player spawns with the pistol
+
+	-- Size of the gun. 1 = about 1.55 studs long.
+	Scale = 1,
+
+	MagazineSize = 17,
+	Damage = 22,
+	HeadshotMultiplier = 2,
+	Range = 400, -- studs
+	FireCooldown = 0.13, -- seconds between shots
+	Automatic = false, -- true = hold to keep firing
+	SpreadDegrees = 0.5,
+	ReloadTime = 1.6, -- seconds
+	TeamKill = false, -- false = can't hurt players on your own team
+
+	-- Camera kick per shot (degrees) and how fast it settles.
+	RecoilKick = 1.8,
+	RecoilRecover = 14,
+
+	-- Sound IDs. Roblox doesn't ship gun sounds, so paste in your own from the
+	-- Creator Store (search e.g. "pistol shot"), like "rbxassetid://123456".
+	-- Leave "" for silence.
+	Sounds = {
+		Fire = "",
+		Empty = "",
+		Reload = "",
+		Hit = "",
+	},
+	FireVolume = 0.8,
+
+	Tag = "RealisticPistol",
+}
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX2">
+			<Properties>
+				<string name="Name">GunBuilder</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	GunBuilder
+
+	Builds the pistol Tool: a polymer-frame, striker-fired style handgun with a
+	matte steel slide, rear slide serrations, an ejection port showing the
+	barrel hood, U-notch rear sight, dot front sight, accessory rail,
+	squared trigger guard, bladed trigger, angled grip with stippled panels
+	and a removable magazine.
+
+	Measurements are written in millimetres (real-world pistol proportions)
+	and converted to studs. Layout: barrel points -Z, up is +Y, the back of
+	the slide is at z = 0 and the top of the frame at y = 0.
+
+	Moving parts are joined with Motor6Ds so the client can animate them:
+	  Slide     - slides back (+Z) when firing / locks back when empty
+	  Trigger   - rotates back when the trigger is pulled
+	  Magazine  - drops down the grip during reloads
+]]
+
+local GunBuilder = {}
+
+local COLORS = {
+	Slide = Color3.fromRGB(38, 39, 42),
+	SlideDark = Color3.fromRGB(16, 16, 18),
+	Frame = Color3.fromRGB(30, 30, 32),
+	FrameDark = Color3.fromRGB(17, 17, 18),
+	Stipple = Color3.fromRGB(34, 34, 36),
+	Steel = Color3.fromRGB(92, 94, 99),
+	MagSteel = Color3.fromRGB(44, 45, 48),
+	Brass = Color3.fromRGB(196, 158, 78),
+	Bore = Color3.fromRGB(6, 6, 6),
+	Dot = Color3.fromRGB(236, 236, 226),
+	Flash = Color3.fromRGB(255, 194, 90),
+}
+
+local GRIP_ANGLE = math.rad(22)
+
+function GunBuilder.build(config)
+	local S = (config.Scale or 1) * 1.55 / 186 -- millimetres -> studs (186 mm long gun)
+	local M = Enum.Material
+
+	local tool = Instance.new("Tool")
+	tool.Name = config.ToolName or "Pistol"
+	tool.ToolTip = tool.Name
+	tool.CanBeDropped = false
+	tool.RequiresHandle = true
+	tool:SetAttribute("Ammo", config.MagazineSize)
+	tool:SetAttribute("Reloading", false)
+
+	local function at(x, y, z)
+		return CFrame.new(x * S, y * S, z * S)
+	end
+	local alongZ = CFrame.Angles(0, math.pi / 2, 0) -- cylinder axis X -> Z
+	local alongY = CFrame.Angles(0, 0, math.pi / 2) -- cylinder axis X -> Y
+
+	local function newPart(kind, name, size, cf, color, material)
+		local p
+		if kind == "wedge" then
+			p = Instance.new("WedgePart")
+		else
+			p = Instance.new("Part")
+			if kind == "cyl" then
+				p.Shape = Enum.PartType.Cylinder
+			elseif kind == "ball" then
+				p.Shape = Enum.PartType.Ball
+			end
+		end
+		p.Name = name
+		p.Size = size * S
+		p.CFrame = cf
+		p.Color = color
+		p.Material = material or M.SmoothPlastic
+		p.Anchored = false
+		p.CanCollide = false
+		p.CanTouch = false
+		p.Massless = true
+		p.CastShadow = true
+		p.TopSurface = Enum.SurfaceType.Smooth
+		p.BottomSurface = Enum.SurfaceType.Smooth
+		p.Parent = tool
+		return p
+	end
+
+	local function weldTo(base, p)
+		local w = Instance.new("Weld")
+		w.Part0 = base
+		w.Part1 = p
+		w.C0 = base.CFrame:ToObjectSpace(p.CFrame)
+		w.Parent = p
+		return p
+	end
+
+	local function joint(name, part0, part1, pivot)
+		local m = Instance.new("Motor6D")
+		m.Name = name
+		m.Part0 = part0
+		m.Part1 = part1
+		m.C0 = part0.CFrame:ToObjectSpace(pivot)
+		m.C1 = part1.CFrame:ToObjectSpace(pivot)
+		m.Parent = part1
+		return m
+	end
+
+	-- Grip frame: tilted back 22 degrees from the bottom of the frame.
+	local gripTop = at(0, -8, -36) * CFrame.Angles(-GRIP_ANGLE, 0, 0)
+	local function onGrip(x, y, z)
+		return gripTop * at(x, y, z)
+	end
+
+	--------------------------------------------------------------------------
+	-- Handle (invisible; this is where the hand holds the gun)
+	--------------------------------------------------------------------------
+	local handle = newPart("block", "Handle", Vector3.new(12, 12, 12), CFrame.new(onGrip(0, -42, 0).Position), COLORS.Frame)
+	handle.Transparency = 1
+
+	local function frame(kind, name, size, cf, color, material)
+		return weldTo(handle, newPart(kind, name, size, cf, color or COLORS.Frame, material or M.SmoothPlastic))
+	end
+
+	--------------------------------------------------------------------------
+	-- Polymer frame
+	--------------------------------------------------------------------------
+	frame("block", "Frame", Vector3.new(22, 14, 140), at(0, -7, -80))
+	frame("block", "DustCover", Vector3.new(22, 12, 32), at(0, -6, -166))
+	for _, z in { -157, -165, -173 } do
+		frame("block", "RailSlot", Vector3.new(22.4, 3, 3), at(0, -10.5, z), COLORS.FrameDark)
+	end
+	frame("block", "Beavertail", Vector3.new(24, 7, 14), at(0, -9.5, -4) * CFrame.Angles(-0.25, 0, 0))
+
+	-- Grip: a block with rounded front and back straps.
+	frame("block", "Grip", Vector3.new(30, 100, 26), onGrip(0, -50, 0))
+	frame("cyl", "GripFront", Vector3.new(100, 30, 30), onGrip(0, -50, -13) * alongY)
+	frame("cyl", "GripBack", Vector3.new(100, 30, 30), onGrip(0, -50, 13) * alongY)
+	for _, side in { -1, 1 } do
+		-- Stippled texture panels and the thumb rest dimple.
+		frame("block", "Stippling", Vector3.new(0.8, 64, 40), onGrip(side * 15.2, -56, 1), COLORS.Stipple, M.Concrete)
+		frame("ball", "ThumbRest", Vector3.new(16, 16, 16), onGrip(side * 9.5, -12, -2), COLORS.FrameDark)
+		-- Slide stop (left) / takedown levers.
+		frame("block", "TakedownLever", Vector3.new(1.6, 3, 7), at(side * 11.6, -3, -104), COLORS.FrameDark)
+	end
+	frame("block", "SlideStop", Vector3.new(2, 4, 18), at(-11.8, -1, -74), COLORS.FrameDark)
+	-- Rear stippling on the backstrap.
+	frame("block", "BackStippling", Vector3.new(18, 60, 0.8), onGrip(0, -56, 28.2), COLORS.Stipple, M.Concrete)
+
+	-- Squared trigger guard.
+	frame("block", "TriggerGuard", Vector3.new(18, 5, 79), at(0, -47, -89.5))
+	frame("block", "TriggerGuard", Vector3.new(18, 31, 5), at(0, -31, -127.5) * CFrame.Angles(0.06, 0, 0))
+	frame("cyl", "TriggerGuard", Vector3.new(18, 10, 10), at(0, -44.5, -125))
+
+	--------------------------------------------------------------------------
+	-- Trigger (jointed)
+	--------------------------------------------------------------------------
+	local triggerPivot = at(0, -14, -96)
+	local trigger = newPart("block", "Trigger", Vector3.new(6, 11, 5), at(0, -20, -97), COLORS.FrameDark)
+	weldTo(trigger, newPart("block", "TriggerCurve", Vector3.new(6, 10, 5), at(0, -29, -96.5) * CFrame.Angles(0.25, 0, 0), COLORS.FrameDark))
+	weldTo(trigger, newPart("block", "TriggerCurve", Vector3.new(6, 8, 5), at(0, -36.5, -94.5) * CFrame.Angles(0.55, 0, 0), COLORS.FrameDark))
+	weldTo(trigger, newPart("block", "TriggerSafety", Vector3.new(2.2, 20, 2), at(0, -30, -99.2) * CFrame.Angles(0.2, 0, 0), COLORS.Frame))
+	joint("Trigger", handle, trigger, triggerPivot)
+
+	--------------------------------------------------------------------------
+	-- Magazine (jointed; mostly hidden inside the grip until a reload)
+	--------------------------------------------------------------------------
+	local magazine = newPart("block", "Magazine", Vector3.new(22, 95, 30), onGrip(0, -52, 2), COLORS.MagSteel, M.Metal)
+	weldTo(magazine, newPart("block", "MagBaseplate", Vector3.new(32, 8, 56), onGrip(0, -103.5, 1), COLORS.Frame))
+	weldTo(magazine, newPart("cyl", "Cartridge", Vector3.new(19, 9, 9), onGrip(0, -2, -2) * alongZ, COLORS.Brass, M.Metal))
+	joint("Magazine", handle, magazine, onGrip(0, -50, 0))
+
+	--------------------------------------------------------------------------
+	-- Slide (jointed)
+	--------------------------------------------------------------------------
+	local slide = newPart("block", "Slide", Vector3.new(25, 28, 186), at(0, 14, -93), COLORS.Slide, M.Metal)
+	slide.Reflectance = 0.04
+	local function onSlide(kind, name, size, cf, color, material)
+		local p = newPart(kind, name, size, cf, color or COLORS.Slide, material or M.Metal)
+		return weldTo(slide, p)
+	end
+	-- Rounded top edges.
+	onSlide("block", "SlideTop", Vector3.new(17, 4, 186), at(0, 30, -93))
+	onSlide("cyl", "SlideEdge", Vector3.new(186, 8, 8), at(-8.5, 28, -93) * alongZ)
+	onSlide("cyl", "SlideEdge", Vector3.new(186, 8, 8), at(8.5, 28, -93) * alongZ)
+	-- Rear slide serrations.
+	for i = 0, 6 do
+		onSlide("block", "Serration", Vector3.new(25.6, 22, 1.8), at(0, 13, -9 - i * 5), COLORS.SlideDark)
+	end
+	-- Ejection port with the barrel hood showing through.
+	onSlide("block", "EjectionPort", Vector3.new(14, 0.6, 37), at(3.5, 32.05, -62), COLORS.SlideDark)
+	onSlide("block", "BarrelHood", Vector3.new(11, 0.9, 32), at(3.5, 32.2, -62), COLORS.Steel)
+	onSlide("block", "EjectionPort", Vector3.new(0.6, 9, 37), at(12.55, 25.5, -62), COLORS.SlideDark)
+	onSlide("block", "BarrelHood", Vector3.new(0.9, 7, 32), at(12.7, 25.5, -62), COLORS.Steel)
+	onSlide("block", "Extractor", Vector3.new(0.8, 3, 15), at(12.8, 20, -50), COLORS.SlideDark)
+	-- Sights.
+	onSlide("block", "FrontSight", Vector3.new(3.5, 5, 6), at(0, 34.5, -179), COLORS.SlideDark)
+	onSlide("block", "FrontSightDot", Vector3.new(1.6, 1.6, 0.4), at(0, 35.5, -175.9), COLORS.Dot, M.SmoothPlastic)
+	onSlide("block", "RearSight", Vector3.new(23, 2.5, 7), at(0, 33.2, -10), COLORS.SlideDark)
+	for _, side in { -1, 1 } do
+		onSlide("block", "RearSight", Vector3.new(8, 6, 7), at(side * 7.5, 35, -10), COLORS.SlideDark)
+		onSlide("block", "RearSightOutline", Vector3.new(1.2, 4, 0.4), at(side * 4.1, 35.4, -6.4), COLORS.Dot, M.SmoothPlastic)
+	end
+	onSlide("block", "RearSightOutline", Vector3.new(9.4, 1.2, 0.4), at(0, 33.9, -6.4), COLORS.Dot, M.SmoothPlastic)
+	-- Muzzle: barrel crown, bore, recoil spring guide.
+	onSlide("cyl", "BarrelCrown", Vector3.new(1.2, 13, 13), at(0, 16, -186.4) * alongZ, COLORS.Steel)
+	onSlide("cyl", "Bore", Vector3.new(1.4, 9, 9), at(0, 16, -186.6) * alongZ, COLORS.Bore, M.SmoothPlastic)
+	onSlide("cyl", "SpringGuide", Vector3.new(0.6, 7, 7), at(0, 4, -186.2) * alongZ, COLORS.Bore, M.SmoothPlastic)
+	joint("Slide", handle, slide, at(0, 14, -93))
+
+	--------------------------------------------------------------------------
+	-- Effects: muzzle flash, light, smoke, ejection point
+	--------------------------------------------------------------------------
+	local muzzle = Instance.new("Attachment")
+	muzzle.Name = "Muzzle"
+	muzzle.CFrame = handle.CFrame:ToObjectSpace(at(0, 16, -189))
+	muzzle.Parent = handle
+
+	local light = Instance.new("PointLight")
+	light.Name = "FlashLight"
+	light.Color = COLORS.Flash
+	light.Brightness = 6
+	light.Range = 12
+	light.Enabled = false
+	light.Parent = muzzle
+
+	local sparks = Instance.new("ParticleEmitter")
+	sparks.Name = "FlashParticles"
+	sparks.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	sparks.Color = ColorSequence.new(COLORS.Flash)
+	sparks.LightEmission = 1
+	sparks.Lifetime = NumberRange.new(0.03, 0.07)
+	sparks.Speed = NumberRange.new(6, 14)
+	sparks.SpreadAngle = Vector2.new(14, 14)
+	sparks.Size = NumberSequence.new(0.35 * (config.Scale or 1), 0)
+	sparks.EmissionDirection = Enum.NormalId.Front
+	sparks.Rate = 0
+	sparks.Parent = muzzle
+
+	local smoke = Instance.new("ParticleEmitter")
+	smoke.Name = "SmokeParticles"
+	smoke.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	smoke.Color = ColorSequence.new(Color3.fromRGB(190, 190, 190))
+	smoke.Lifetime = NumberRange.new(0.4, 0.8)
+	smoke.Speed = NumberRange.new(1, 3)
+	smoke.SpreadAngle = Vector2.new(20, 20)
+	smoke.Size = NumberSequence.new(0.15, 0.7)
+	smoke.Transparency = NumberSequence.new(0.6, 1)
+	smoke.EmissionDirection = Enum.NormalId.Front
+	smoke.Rate = 0
+	smoke.Parent = muzzle
+
+	-- Neon flash star (hidden until a shot).
+	for i, spec in {
+		{ Vector3.new(4, 4, 46), at(0, 16, -212) },
+		{ Vector3.new(28, 4, 4), at(0, 16, -194) },
+		{ Vector3.new(4, 28, 4), at(0, 16, -194) },
+	} do
+		local flash = frame("block", "MuzzleFlash", spec[1], spec[2], COLORS.Flash, M.Neon)
+		flash.Transparency = 1
+		flash.CastShadow = false
+		flash.CanQuery = false
+		flash:SetAttribute("FlashIndex", i)
+	end
+
+	local ejection = Instance.new("Attachment")
+	ejection.Name = "Ejection"
+	ejection.CFrame = handle.CFrame:ToObjectSpace(at(10, 30, -62))
+	ejection.Parent = handle
+
+	return tool
+end
+
+return GunBuilder
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX3">
+			<Properties>
+				<string name="Name">PistolServer</string>
+				<token name="RunContext">1</token>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Pistol server: builds the tool, gives it to players, and handles shots
+	and reloads. Ammo, fire rate and damage are all checked here so players
+	can't cheat them. This is a Script with RunContext = Server, so it runs
+	from ReplicatedStorage.
+]]
+
+local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+local StarterPack = game:GetService("StarterPack")
+local Workspace = game:GetService("Workspace")
+
+local folder = script.Parent
+local Config = require(folder:WaitForChild("Config"))
+local GunBuilder = require(folder:WaitForChild("GunBuilder"))
+
+local remote = folder:FindFirstChild("PistolRemote") or Instance.new("RemoteEvent")
+remote.Name = "PistolRemote"
+remote.Parent = folder
+
+local template = GunBuilder.build(Config)
+CollectionService:AddTag(template, Config.Tag)
+
+if Config.GiveOnSpawn then
+	template.Parent = StarterPack -- copied into each player's backpack when they spawn
+	for _, player in Players:GetPlayers() do
+		local backpack = player:FindFirstChildOfClass("Backpack")
+		if backpack and not backpack:FindFirstChild(template.Name) then
+			template:Clone().Parent = backpack
+		end
+	end
+else
+	template.Parent = folder -- clone it from here yourself, e.g. for a shop
+end
+
+local lastFire = setmetatable({}, { __mode = "k" })
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+rayParams.IgnoreWater = true
+
+local function findHumanoid(part)
+	local model = part:FindFirstAncestorOfClass("Model")
+	while model do
+		local humanoid = model:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			return humanoid
+		end
+		model = model:FindFirstAncestorOfClass("Model")
+	end
+	return nil
+end
+
+local function canDamage(shooter, humanoid)
+	local victim = Players:GetPlayerFromCharacter(humanoid.Parent)
+	if victim == shooter then
+		return false
+	end
+	if victim and not Config.TeamKill and not shooter.Neutral and shooter.Team ~= nil and victim.Team == shooter.Team then
+		return false
+	end
+	return true
+end
+
+local function isFiniteVector(v)
+	return typeof(v) == "Vector3" and v.X == v.X and v.Y == v.Y and v.Z == v.Z
+		and math.abs(v.X) < 1e6 and math.abs(v.Y) < 1e6 and math.abs(v.Z) < 1e6
+end
+
+local function fire(player, character, tool, target)
+	if not isFiniteVector(target) or tool:GetAttribute("Reloading") then
+		return
+	end
+	local ammo = tool:GetAttribute("Ammo") or 0
+	if ammo <= 0 then
+		return
+	end
+	local now = os.clock()
+	if now - (lastFire[tool] or 0) < Config.FireCooldown * 0.75 then
+		return -- firing faster than the gun allows
+	end
+	lastFire[tool] = now
+	tool:SetAttribute("Ammo", ammo - 1)
+
+	local handle = tool:FindFirstChild("Handle")
+	local muzzle = handle and handle:FindFirstChild("Muzzle")
+	if not muzzle then
+		return
+	end
+	local origin = muzzle.WorldPosition
+	local offset = target - origin
+	if offset.Magnitude < 0.01 then
+		return
+	end
+	local direction = offset.Unit * Config.Range
+
+	rayParams.FilterDescendantsInstances = { character }
+	local result = Workspace:Raycast(origin, direction, rayParams)
+	local hitPosition = result and result.Position or origin + direction
+	local hitNormal = result and result.Normal
+	local humanoid = result and findHumanoid(result.Instance)
+
+	if humanoid and humanoid.Health > 0 and canDamage(player, humanoid) then
+		local headshot = result.Instance.Name == "Head"
+		humanoid:TakeDamage(Config.Damage * (headshot and Config.HeadshotMultiplier or 1))
+		remote:FireClient(player, "HitConfirm", headshot, humanoid.Health <= 0)
+	end
+
+	-- Everyone draws the muzzle flash, tracer and impact (the shooter already did).
+	remote:FireAllClients("Shot", player, tool, hitPosition, hitNormal, humanoid ~= nil)
+end
+
+local function reload(tool)
+	if tool:GetAttribute("Reloading") or (tool:GetAttribute("Ammo") or 0) >= Config.MagazineSize then
+		return
+	end
+	tool:SetAttribute("ReloadStart", Workspace:GetServerTimeNow())
+	tool:SetAttribute("Reloading", true)
+	task.delay(Config.ReloadTime, function()
+		tool:SetAttribute("Ammo", Config.MagazineSize)
+		tool:SetAttribute("Reloading", false)
+	end)
+end
+
+remote.OnServerEvent:Connect(function(player, action, tool, target)
+	if typeof(tool) ~= "Instance" or not tool:IsA("Tool") or not CollectionService:HasTag(tool, Config.Tag) then
+		return
+	end
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 or tool.Parent ~= character then
+		return
+	end
+	if action == "Fire" then
+		fire(player, character, tool, target)
+	elseif action == "Reload" then
+		reload(tool)
+	end
+end)
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX4">
+			<Properties>
+				<string name="Name">PistolClient</string>
+				<token name="RunContext">2</token>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Pistol client: aiming, firing, recoil, slide / trigger / magazine
+	animation, muzzle flash, shell casings, tracers, bullet holes, and the
+	crosshair + ammo HUD. This is a Script with RunContext = Client, so it
+	runs from ReplicatedStorage.
+
+	Controls: click / tap to shoot, R (or the on-screen button) to reload.
+]]
+
+local CollectionService = game:GetService("CollectionService")
+local Debris = game:GetService("Debris")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local folder = script.Parent
+local Config = require(folder:WaitForChild("Config"))
+local remote = folder:WaitForChild("PistolRemote")
+
+local player = Players.LocalPlayer
+local MM = (Config.Scale or 1) * 1.55 / 186 -- millimetres -> studs, matches GunBuilder
+
+local SLIDE_TRAVEL = 22 -- mm the slide moves back
+local MAG_DROP = 115 -- mm the magazine slides out
+
+local function smooth(t)
+	t = math.clamp(t, 0, 1)
+	return t * t * (3 - 2 * t)
+end
+
+--------------------------------------------------------------------------------
+-- Per-tool state (every pistol in the game, so other players' guns animate too)
+--------------------------------------------------------------------------------
+
+local states = {}
+
+local function getState(tool)
+	local state = states[tool]
+	if state then
+		return state
+	end
+	local handle = tool:FindFirstChild("Handle")
+	local muzzle = handle and handle:FindFirstChild("Muzzle")
+	if not muzzle then
+		return nil
+	end
+	local function motor(name)
+		local part = tool:FindFirstChild(name)
+		return part and part:FindFirstChild(name)
+	end
+	local magParts, flashParts = {}, {}
+	for _, child in tool:GetChildren() do
+		if child.Name == "Magazine" or child.Name == "MagBaseplate" or child.Name == "Cartridge" then
+			table.insert(magParts, child)
+		elseif child.Name == "MuzzleFlash" then
+			table.insert(flashParts, child)
+		end
+	end
+	local sounds = {}
+	for key, id in Config.Sounds do
+		if id ~= "" then
+			local sound = Instance.new("Sound")
+			sound.SoundId = id
+			sound.Volume = key == "Fire" and Config.FireVolume or 0.6
+			sound.RollOffMaxDistance = key == "Fire" and 250 or 60
+			sound.Parent = handle
+			sounds[key] = sound
+		end
+	end
+	state = {
+		tool = tool,
+		handle = handle,
+		muzzle = muzzle,
+		ejection = handle:FindFirstChild("Ejection"),
+		slide = motor("Slide"),
+		trigger = motor("Trigger"),
+		magazine = motor("Magazine"),
+		magParts = magParts,
+		flashParts = flashParts,
+		sounds = sounds,
+		shotAt = -math.huge,
+		emptyReload = false,
+		magHidden = false,
+	}
+	states[tool] = state
+	tool:GetAttributeChangedSignal("Reloading"):Connect(function()
+		if tool:GetAttribute("Reloading") then
+			state.emptyReload = (tool:GetAttribute("Ammo") or 0) <= 0
+		end
+	end)
+	tool.AncestryChanged:Connect(function()
+		if not tool:IsDescendantOf(game) then
+			states[tool] = nil
+		end
+	end)
+	return state
+end
+
+local function play(state, key)
+	local sound = state.sounds[key]
+	if sound then
+		sound.PlaybackSpeed = key == "Fire" and (0.95 + math.random() * 0.1) or 1
+		sound:Play()
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Shot effects
+--------------------------------------------------------------------------------
+
+local effectsFolder = Instance.new("Folder")
+effectsFolder.Name = "PistolEffects"
+effectsFolder.Parent = Workspace
+
+local function effectPart(size, cf, color, material)
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = material or Enum.Material.SmoothPlastic
+	p.Parent = effectsFolder
+	return p
+end
+
+local function burst(position, normal, color, count, speed)
+	local holder = effectPart(Vector3.new(0.05, 0.05, 0.05), CFrame.lookAt(position, position + normal), color)
+	holder.Transparency = 1
+	local attachment = Instance.new("Attachment")
+	attachment.Parent = holder
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	emitter.Color = ColorSequence.new(color)
+	emitter.LightEmission = 0.6
+	emitter.Lifetime = NumberRange.new(0.15, 0.35)
+	emitter.Speed = NumberRange.new(speed * 0.5, speed)
+	emitter.SpreadAngle = Vector2.new(50, 50)
+	emitter.Acceleration = Vector3.new(0, -30, 0)
+	emitter.Size = NumberSequence.new(0.12, 0)
+	emitter.EmissionDirection = Enum.NormalId.Front
+	emitter.Rate = 0
+	emitter.Parent = attachment
+	local dust = Instance.new("ParticleEmitter")
+	dust.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	dust.Color = ColorSequence.new(Color3.fromRGB(150, 145, 135))
+	dust.Lifetime = NumberRange.new(0.3, 0.6)
+	dust.Speed = NumberRange.new(1, 3)
+	dust.SpreadAngle = Vector2.new(30, 30)
+	dust.Size = NumberSequence.new(0.2, 0.7)
+	dust.Transparency = NumberSequence.new(0.5, 1)
+	dust.EmissionDirection = Enum.NormalId.Front
+	dust.Rate = 0
+	dust.Parent = attachment
+	emitter:Emit(count)
+	dust:Emit(3)
+	Debris:AddItem(holder, 1)
+end
+
+local function ejectCasing(state)
+	if not state.ejection then
+		return
+	end
+	local handleCF = state.handle.CFrame
+	local casing = Instance.new("Part")
+	casing.Shape = Enum.PartType.Cylinder
+	casing.Size = Vector3.new(19 * MM, 9 * MM, 9 * MM)
+	casing.Color = Color3.fromRGB(198, 160, 80)
+	casing.Material = Enum.Material.Metal
+	casing.Reflectance = 0.15
+	casing.CanQuery = false
+	casing.CanTouch = false
+	casing.CFrame = CFrame.new(state.ejection.WorldPosition) * handleCF.Rotation * CFrame.Angles(0, math.pi / 2, 0)
+	casing.Parent = effectsFolder
+	casing.AssemblyLinearVelocity = handleCF.RightVector * (7 + math.random() * 3)
+		+ handleCF.UpVector * (6 + math.random() * 3)
+		+ handleCF.LookVector * -1.5
+	casing.AssemblyAngularVelocity = Vector3.new(math.random(-30, 30), math.random(-30, 30), math.random(-30, 30))
+	Debris:AddItem(casing, 3)
+end
+
+local function playShotEffects(state, hitPosition, hitNormal, hitCharacter)
+	state.shotAt = os.clock()
+	play(state, "Fire")
+
+	-- Muzzle flash: light, sparks, smoke and the neon flash star.
+	local light = state.muzzle:FindFirstChild("FlashLight")
+	local sparks = state.muzzle:FindFirstChild("FlashParticles")
+	local smoke = state.muzzle:FindFirstChild("SmokeParticles")
+	if sparks then
+		sparks:Emit(10)
+	end
+	if smoke then
+		smoke:Emit(3)
+	end
+	if light then
+		light.Enabled = true
+	end
+	for _, part in state.flashParts do
+		part.Transparency = 0.1 + math.random() * 0.3
+	end
+	task.delay(0.045, function()
+		if light then
+			light.Enabled = false
+		end
+		for _, part in state.flashParts do
+			part.Transparency = 1
+		end
+	end)
+
+	ejectCasing(state)
+
+	-- Tracer from the muzzle to the hit point.
+	local origin = state.muzzle.WorldPosition
+	local length = (hitPosition - origin).Magnitude
+	if length > 1 then
+		local tracer = effectPart(
+			Vector3.new(0.035, 0.035, length),
+			CFrame.lookAt(origin, hitPosition) * CFrame.new(0, 0, -length / 2),
+			Color3.fromRGB(255, 226, 160),
+			Enum.Material.Neon
+		)
+		tracer.Transparency = 0.35
+		Debris:AddItem(tracer, 0.05)
+	end
+
+	-- Bullet hole and sparks on whatever was hit.
+	if hitNormal then
+		if hitCharacter then
+			burst(hitPosition, hitNormal, Color3.fromRGB(255, 255, 255), 6, 8)
+		else
+			local hole = effectPart(
+				Vector3.new(0.02, 0.13, 0.13),
+				CFrame.lookAt(hitPosition, hitPosition + hitNormal) * CFrame.Angles(0, math.pi / 2, 0),
+				Color3.fromRGB(14, 14, 14)
+			)
+			hole.Shape = Enum.PartType.Cylinder
+			Debris:AddItem(hole, 12)
+			burst(hitPosition, hitNormal, Color3.fromRGB(255, 200, 110), 10, 14)
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+-- HUD: crosshair, hit marker, ammo counter, reload button
+--------------------------------------------------------------------------------
+
+local hud = Instance.new("ScreenGui")
+hud.Name = "PistolHUD"
+hud.ResetOnSpawn = false
+hud.IgnoreGuiInset = true
+hud.DisplayOrder = 5
+hud.Enabled = false
+hud.Parent = player:WaitForChild("PlayerGui")
+
+local function make(class, props, parent)
+	local inst = Instance.new(class)
+	for k, v in props do
+		inst[k] = v
+	end
+	inst.Parent = parent
+	return inst
+end
+
+local crosshair = make("Frame", { Size = UDim2.fromOffset(60, 60), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1 }, hud)
+local crossBars = {}
+for i, spec in { { 0, -1 }, { 0, 1 }, { -1, 0 }, { 1, 0 } } do
+	local bar = make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = spec[1] == 0 and UDim2.fromOffset(2, 9) or UDim2.fromOffset(9, 2),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+	}, crosshair)
+	make("UIStroke", { Color = Color3.new(0, 0, 0), Thickness = 1, Transparency = 0.4 }, bar)
+	crossBars[i] = { bar = bar, dir = Vector2.new(spec[1], spec[2]) }
+end
+make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(3, 3), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, crosshair)
+
+local hitMarker = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false }, crosshair)
+for _, angle in { 45, 135, 225, 315 } do
+	local r = math.rad(angle)
+	make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, math.cos(r) * 13, 0.5, math.sin(r) * 13),
+		Size = UDim2.fromOffset(2, 9),
+		Rotation = angle + 90,
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+	}, hitMarker)
+end
+
+-- Ammo panel in the same dark-navy style as the game's other windows.
+local panel = make("Frame", {
+	AnchorPoint = Vector2.new(1, 1),
+	Position = UDim2.new(1, -24, 1, -24),
+	Size = UDim2.fromOffset(190, 84),
+	BackgroundColor3 = Color3.new(1, 1, 1),
+}, hud)
+make("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(18, 30, 52), Color3.fromRGB(5, 9, 18)) }, panel)
+make("UIStroke", { Color = Color3.fromRGB(40, 60, 94), Thickness = 2 }, panel)
+make("UICorner", { CornerRadius = UDim.new(0, 8) }, panel)
+local FONT_BOLD = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.ExtraBold)
+local FONT_BODY = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.SemiBold)
+make("TextLabel", {
+	Text = string.upper(Config.ToolName),
+	FontFace = FONT_BODY,
+	TextSize = 13,
+	TextColor3 = Color3.fromRGB(196, 202, 214),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(14, 8),
+	Size = UDim2.fromOffset(160, 16),
+}, panel)
+local ammoLabel = make("TextLabel", {
+	Text = "17",
+	FontFace = FONT_BOLD,
+	TextSize = 38,
+	TextColor3 = Color3.new(1, 1, 1),
+	TextStrokeTransparency = 0.4,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(14, 24),
+	Size = UDim2.fromOffset(70, 40),
+}, panel)
+local magLabel = make("TextLabel", {
+	Text = "/ " .. Config.MagazineSize,
+	FontFace = FONT_BODY,
+	TextSize = 18,
+	TextColor3 = Color3.fromRGB(196, 202, 214),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(84, 36),
+	Size = UDim2.fromOffset(90, 22),
+}, panel)
+local hintLabel = make("TextLabel", {
+	Text = "",
+	FontFace = FONT_BOLD,
+	TextSize = 13,
+	TextColor3 = Color3.fromRGB(255, 222, 40),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(14, 62),
+	Size = UDim2.fromOffset(160, 16),
+}, panel)
+local reloadTrack = make("Frame", {
+	Position = UDim2.new(0, 14, 1, -10),
+	Size = UDim2.new(1, -28, 0, 4),
+	BackgroundColor3 = Color3.fromRGB(18, 20, 24),
+	BorderSizePixel = 0,
+	Visible = false,
+}, panel)
+make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, reloadTrack)
+local reloadFill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromRGB(255, 222, 40), BorderSizePixel = 0 }, reloadTrack)
+make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, reloadFill)
+
+local reloadButton = make("TextButton", {
+	Text = "RELOAD",
+	FontFace = FONT_BOLD,
+	TextSize = 16,
+	TextColor3 = Color3.new(1, 1, 1),
+	AnchorPoint = Vector2.new(1, 1),
+	Position = UDim2.new(1, -24, 1, -118),
+	Size = UDim2.fromOffset(110, 44),
+	BackgroundColor3 = Color3.new(1, 1, 1),
+	Visible = UserInputService.TouchEnabled,
+}, hud)
+make("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(36, 36, 40), Color3.fromRGB(14, 14, 16)) }, reloadButton)
+make("UIStroke", { Color = Color3.fromRGB(64, 64, 70), Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, reloadButton)
+make("UICorner", { CornerRadius = UDim.new(0, 6) }, reloadButton)
+
+--------------------------------------------------------------------------------
+-- Local player's gun handling
+--------------------------------------------------------------------------------
+
+local equipped = nil -- state of the gun the local player is holding
+local localAmmo = 0
+local triggerHeld = false
+local lastShot = 0
+local recoil, recoilTarget, recoilYaw = 0, 0, 0
+local bloom = 0
+local hitMarkerUntil = 0
+
+local function updateAmmoUI()
+	ammoLabel.Text = tostring(localAmmo)
+	ammoLabel.TextColor3 = localAmmo == 0 and Color3.fromRGB(236, 22, 34) or Color3.new(1, 1, 1)
+	if equipped and equipped.tool:GetAttribute("Reloading") then
+		hintLabel.Text = "RELOADING..."
+	elseif localAmmo == 0 then
+		hintLabel.Text = UserInputService.TouchEnabled and "TAP RELOAD" or "PRESS R TO RELOAD"
+	elseif localAmmo <= math.ceil(Config.MagazineSize * 0.25) then
+		hintLabel.Text = "LOW AMMO"
+	else
+		hintLabel.Text = ""
+	end
+end
+
+local aimParams = RaycastParams.new()
+aimParams.FilterType = Enum.RaycastFilterType.Exclude
+aimParams.IgnoreWater = true
+
+-- Where the crosshair is pointing in the world.
+local function aimPoint(origin)
+	local camera = Workspace.CurrentCamera
+	local mouse = UserInputService:GetMouseLocation()
+	local ray = camera:ViewportPointToRay(mouse.X, mouse.Y)
+	aimParams.FilterDescendantsInstances = { player.Character, effectsFolder }
+	local result = Workspace:Raycast(ray.Origin, ray.Direction * Config.Range, aimParams)
+	local point = result and result.Position or ray.Origin + ray.Direction * Config.Range
+	-- Random spread around the line from the muzzle to that point.
+	local spread = math.rad(Config.SpreadDegrees + bloom * 0.6)
+	local dir = CFrame.lookAt(origin, point)
+		* CFrame.Angles((math.random() - 0.5) * 2 * spread, (math.random() - 0.5) * 2 * spread, 0)
+	return origin + dir.LookVector * math.max((point - origin).Magnitude, 1)
+end
+
+local function requestReload()
+	if not equipped then
+		return
+	end
+	local tool = equipped.tool
+	if tool:GetAttribute("Reloading") or localAmmo >= Config.MagazineSize then
+		return
+	end
+	play(equipped, "Reload")
+	remote:FireServer("Reload", tool)
+end
+
+local function tryFire()
+	local state = equipped
+	if not state then
+		return
+	end
+	local tool = state.tool
+	local now = os.clock()
+	if tool:GetAttribute("Reloading") or now - lastShot < Config.FireCooldown then
+		return
+	end
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then
+		return
+	end
+	lastShot = now
+	if localAmmo <= 0 then
+		play(state, "Empty")
+		requestReload()
+		return
+	end
+	localAmmo -= 1
+	updateAmmoUI()
+
+	local origin = state.muzzle.WorldPosition
+	local target = aimPoint(origin)
+	remote:FireServer("Fire", tool, target)
+
+	-- Show the shot right away instead of waiting for the server.
+	aimParams.FilterDescendantsInstances = { character, effectsFolder }
+	local direction = (target - origin).Unit * Config.Range
+	local result = Workspace:Raycast(origin, direction, aimParams)
+	local hitCharacter = false
+	if result then
+		local model = result.Instance:FindFirstAncestorOfClass("Model")
+		hitCharacter = model ~= nil and model:FindFirstChildOfClass("Humanoid") ~= nil
+	end
+	playShotEffects(state, result and result.Position or origin + direction, result and result.Normal, hitCharacter)
+
+	recoilTarget += Config.RecoilKick
+	recoilYaw = (math.random() - 0.5) * Config.RecoilKick * 0.5
+	bloom = math.min(bloom + 1, 4)
+
+	if localAmmo == 0 then
+		task.delay(0.35, requestReload) -- auto reload once the magazine is empty
+	end
+end
+
+local function setup(tool)
+	if not tool:IsA("Tool") then
+		return
+	end
+	tool.Equipped:Connect(function()
+		if tool.Parent ~= player.Character then
+			return
+		end
+		equipped = getState(tool)
+		if not equipped then
+			return
+		end
+		localAmmo = tool:GetAttribute("Ammo") or 0
+		updateAmmoUI()
+		hud.Enabled = true
+		crosshair.Visible = UserInputService.MouseEnabled
+		UserInputService.MouseIconEnabled = not UserInputService.MouseEnabled
+	end)
+	tool.Unequipped:Connect(function()
+		if equipped and equipped.tool == tool then
+			equipped = nil
+			triggerHeld = false
+			hud.Enabled = false
+			UserInputService.MouseIconEnabled = true
+		end
+	end)
+	tool.Activated:Connect(function()
+		triggerHeld = true
+		tryFire()
+	end)
+	tool.Deactivated:Connect(function()
+		triggerHeld = false
+	end)
+	tool:GetAttributeChangedSignal("Ammo"):Connect(function()
+		if equipped and equipped.tool == tool then
+			-- Shots we predicted are already counted, so only ever go down here.
+			localAmmo = math.min(localAmmo, tool:GetAttribute("Ammo") or 0)
+			updateAmmoUI()
+		end
+	end)
+	tool:GetAttributeChangedSignal("Reloading"):Connect(function()
+		if equipped and equipped.tool == tool then
+			if not tool:GetAttribute("Reloading") then
+				localAmmo = tool:GetAttribute("Ammo") or 0
+			end
+			updateAmmoUI()
+		end
+	end)
+end
+
+CollectionService:GetInstanceAddedSignal(Config.Tag):Connect(setup)
+for _, tool in CollectionService:GetTagged(Config.Tag) do
+	setup(tool)
+end
+
+UserInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == Enum.KeyCode.R then
+		requestReload()
+	end
+end)
+reloadButton.Activated:Connect(requestReload)
+
+remote.OnClientEvent:Connect(function(kind, ...)
+	if kind == "Shot" then
+		local shooter, tool, hitPosition, hitNormal, hitCharacter = ...
+		if shooter ~= player and typeof(tool) == "Instance" then
+			local state = getState(tool)
+			if state then
+				playShotEffects(state, hitPosition, hitNormal, hitCharacter)
+			end
+		end
+	elseif kind == "HitConfirm" then
+		local headshot = ...
+		hitMarkerUntil = os.clock() + 0.15
+		for _, bar in hitMarker:GetChildren() do
+			bar.BackgroundColor3 = headshot and Color3.fromRGB(236, 22, 34) or Color3.new(1, 1, 1)
+		end
+		if equipped then
+			play(equipped, "Hit")
+		end
+	end
+end)
+
+--------------------------------------------------------------------------------
+-- Per-frame: camera recoil, HUD, and gun part animation
+--------------------------------------------------------------------------------
+
+RunService:BindToRenderStep("PistolRecoil", Enum.RenderPriority.Camera.Value + 1, function(dt)
+	recoilTarget *= math.exp(-Config.RecoilRecover * dt)
+	recoil += (recoilTarget - recoil) * math.min(1, dt * 35)
+	recoilYaw *= math.exp(-Config.RecoilRecover * dt)
+	if math.abs(recoil) > 1e-3 then
+		local camera = Workspace.CurrentCamera
+		camera.CFrame *= CFrame.Angles(math.rad(recoil), math.rad(recoilYaw), 0)
+	end
+end)
+
+RunService.RenderStepped:Connect(function(dt)
+	bloom = math.max(0, bloom - dt * 5)
+
+	-- Dying or respawning doesn't always fire Unequipped, so clean up here too.
+	if equipped and equipped.tool.Parent ~= player.Character then
+		equipped = nil
+		triggerHeld = false
+		hud.Enabled = false
+		UserInputService.MouseIconEnabled = true
+	end
+
+	if equipped then
+		if Config.Automatic and triggerHeld then
+			tryFire()
+		end
+		local mouse = UserInputService:GetMouseLocation()
+		crosshair.Position = UDim2.fromOffset(mouse.X, mouse.Y)
+		local gap = 7 + bloom * 3
+		for _, item in crossBars do
+			item.bar.Position = UDim2.new(0.5, item.dir.X * gap, 0.5, item.dir.Y * gap)
+		end
+		hitMarker.Visible = os.clock() < hitMarkerUntil
+		local tool = equipped.tool
+		if tool:GetAttribute("Reloading") then
+			local u = (Workspace:GetServerTimeNow() - (tool:GetAttribute("ReloadStart") or 0)) / Config.ReloadTime
+			reloadTrack.Visible = true
+			reloadFill.Size = UDim2.fromScale(math.clamp(u, 0, 1), 1)
+		else
+			reloadTrack.Visible = false
+		end
+	end
+
+	-- Animate every pistol currently held by someone.
+	local now = os.clock()
+	local serverNow = Workspace:GetServerTimeNow()
+	for tool, state in states do
+		local holder = tool.Parent
+		if holder and holder:FindFirstChildOfClass("Humanoid") and state.slide then
+			local age = now - state.shotAt
+			local slide = 0
+			if age < 0.03 then
+				slide = age / 0.03
+			elseif age < 0.1 then
+				slide = 1 - (age - 0.03) / 0.07
+			end
+			local trigger = age < 0.09 and 0.3 or 0
+
+			local ammo = (equipped == state) and localAmmo or (tool:GetAttribute("Ammo") or 0)
+			local mag, magHidden = 0, false
+			if tool:GetAttribute("Reloading") then
+				local u = (serverNow - (tool:GetAttribute("ReloadStart") or 0)) / Config.ReloadTime
+				if u < 0.2 then
+					mag = smooth(u / 0.2) -- old magazine slides out
+				elseif u < 0.45 then
+					mag, magHidden = 1, true -- reaching for a new one
+				elseif u < 0.7 then
+					mag = 1 - smooth((u - 0.45) / 0.25) -- new magazine goes in
+				end
+				if state.emptyReload and u < 0.8 then
+					slide = 1 -- slide stays locked back until it's released
+				end
+			elseif ammo <= 0 and age >= 0.03 then
+				slide = 1 -- empty: slide locks back
+			end
+
+			state.slide.Transform = CFrame.new(0, 0, slide * SLIDE_TRAVEL * MM)
+			if state.trigger then
+				state.trigger.Transform = CFrame.Angles(-trigger, 0, 0)
+			end
+			if state.magazine then
+				state.magazine.Transform = CFrame.new(0, -mag * MAG_DROP * MM, 0)
+			end
+			if magHidden ~= state.magHidden then
+				state.magHidden = magHidden
+				for _, part in state.magParts do
+					part.Transparency = magHidden and 1 or 0
+				end
+			end
+		end
+	end
+end)
+
+-- Make sure guns that appear before anyone shoots still get a state.
+for _, tool in CollectionService:GetTagged(Config.Tag) do
+	getState(tool)
+end
+CollectionService:GetInstanceAddedSignal(Config.Tag):Connect(getState)
+]]></ProtectedString>
+			</Properties>
+		</Item>
+	</Item>
+</roblox>

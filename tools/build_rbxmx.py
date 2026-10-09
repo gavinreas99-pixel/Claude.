@@ -19,6 +19,12 @@ PACKAGES = {
     "QuestThemeUI": [
         ("ApplyQuestTheme.client.luau", "ApplyQuestTheme", "Script", 2),
     ],
+    "RealisticPistol": [
+        ("Config.luau", "Config", "ModuleScript", None),
+        ("GunBuilder.luau", "GunBuilder", "ModuleScript", None),
+        ("PistolServer.server.luau", "PistolServer", "Script", 1),
+        ("PistolClient.client.luau", "PistolClient", "Script", 2),
+    ],
 }
 
 

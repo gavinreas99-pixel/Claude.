@@ -9,6 +9,9 @@
       },
       "QuestThemeUI": {
         "$path": "src/QuestThemeUI"
+      },
+      "RealisticPistol": {
+        "$path": "src/RealisticPistol"
       }
     }
   }
