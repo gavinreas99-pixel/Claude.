@@ -1,0 +1,12 @@
+{
+  "name": "JadeJungleGoblins",
+  "emitLegacyScripts": false,
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "JadeJungleGoblins": {
+        "$path": "src/JadeJungleGoblins"
+      }
+    }
+  }
+}
