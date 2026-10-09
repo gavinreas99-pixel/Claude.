@@ -1,4 +1,11 @@
-# Jade Jungle Goblins
+# Jade Jungle Goblins & Quest-style UI
+
+This repo has two drop-in packages:
+
+- **`JadeJungleGoblins.rbxmx`** adds animated goblin enemies (see below).
+- **`QuestThemeUI.rbxmx`** restyles your Bag and Tutorial screens to look like the Quests window (see [Quest-style UI](#quest-style-ui)).
+
+## Jade Jungle Goblins
 
 Goblin enemies for the Jade Jungle. They're modeled on the classic big-eared goblin: big bald head, angry brows, droopy nose, long ears, red tunic with leather belts, a spiked round shield and a curved scimitar. Each goblin has a real jointed rig, so it runs, swings its sword and flinches instead of sliding around like a block.
 
@@ -55,3 +62,25 @@ If you edit the source files, rebuild the Studio file with `python3 tools/build_
 ## Want it even more realistic?
 
 These goblins are built from smooth rounded parts, so they look like the reference picture but not like a sculpted, textured model. To get a photo-quality look, import a goblin **MeshPart** model (from Blender or the Toolbox) and name its joints like this rig's. The animation code drives any model with the same joint names: `Root`, `Waist`, `Neck`, `Left/RightShoulder`, `Left/RightElbow`, `Left/RightHip`, `Left/RightKnee`, `Left/RightAnkle`, `Left/RightEar`, `FrontFlap`, `BackFlap`.
+
+## Quest-style UI
+
+`QuestThemeUI.rbxmx` gives your **Bag** and **Tutorial** screens the look of the Quests window:
+
+- dark navy window with a red border and a red gradient title bar
+- dark blue cards and near-black item slots
+- dark tab and action buttons
+- rounded progress bars
+- bold white text, grey descriptions, yellow XP and a red close X
+
+![UI theme preview](docs/ui-theme-preview.png)
+
+*Example run on mock Bag and Tutorial screens: before on the left, after on the right.*
+
+**Install:** drag `QuestThemeUI.rbxmx` into **ReplicatedStorage** and press Play.
+
+**How it works:** when the game runs, the script finds every ScreenGui whose name contains `bag`, `inventory`, `backpack` or `tutorial`. It restyles whatever is inside: colours, fonts, outlines, gradients and rounded corners. It never moves or resizes anything, so your layout and your own scripts keep working. Items added to the bag later get styled automatically.
+
+- **Your screens are named differently?** Edit the `TARGET_GUIS` list at the top of the `ApplyQuestTheme` script.
+- **Want to keep one element exactly as it was?** Give it the attribute `NoTheme` = `true`.
+- **Changes only show in Play mode,** not while you're editing in Studio.

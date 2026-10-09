@@ -6,6 +6,9 @@
     "ReplicatedStorage": {
       "JadeJungleGoblins": {
         "$path": "src/JadeJungleGoblins"
+      },
+      "QuestThemeUI": {
+        "$path": "src/QuestThemeUI"
       }
     }
   }

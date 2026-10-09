@@ -1,0 +1,448 @@
+--[[
+	ApplyQuestTheme
+
+	Restyles your Bag and Tutorial screens to match the Quests window:
+	  - dark navy window with a dark red border
+	  - red gradient header bar
+	  - dark blue gradient cards with a thin blue-grey outline
+	  - near-black square item slots
+	  - dark gradient buttons / tabs
+	  - rounded dark progress bars
+	  - bold Montserrat text: white titles, grey descriptions, yellow "XP"
+	  - red close "X"
+
+	It only changes colours, fonts, outlines, gradients and corners. Nothing is
+	moved or resized, so your layout and scripts keep working.
+
+	Put this Script (RunContext = Client) in ReplicatedStorage.
+	Any ScreenGui whose name contains one of TARGET_GUIS gets restyled.
+	To keep one element as-is, give it the attribute NoTheme = true.
+]]
+
+local TARGET_GUIS = { "bag", "inventory", "backpack", "tutorial" }
+
+local Players = game:GetService("Players")
+
+local COLORS = {
+	WindowTop = Color3.fromRGB(14, 20, 34),
+	WindowBottom = Color3.fromRGB(6, 9, 16),
+	WindowBorder = Color3.fromRGB(122, 8, 8),
+	HeaderTop = Color3.fromRGB(176, 12, 12),
+	HeaderBottom = Color3.fromRGB(98, 0, 0),
+	HeaderBorder = Color3.fromRGB(60, 0, 0),
+	CardTop = Color3.fromRGB(18, 30, 52),
+	CardBottom = Color3.fromRGB(5, 9, 18),
+	CardBorder = Color3.fromRGB(40, 60, 94),
+	Slot = Color3.fromRGB(8, 10, 15),
+	SlotBorder = Color3.fromRGB(44, 48, 60),
+	ButtonTop = Color3.fromRGB(36, 36, 40),
+	ButtonBottom = Color3.fromRGB(14, 14, 16),
+	ButtonBorder = Color3.fromRGB(64, 64, 70),
+	Track = Color3.fromRGB(18, 20, 24),
+	TrackBorder = Color3.fromRGB(58, 60, 66),
+	Text = Color3.new(1, 1, 1),
+	SubText = Color3.fromRGB(196, 202, 214),
+	Gold = Color3.fromRGB(255, 222, 40),
+	Close = Color3.fromRGB(236, 22, 34),
+	Outline = Color3.new(0, 0, 0),
+}
+
+local FONT_FAMILY = "rbxasset://fonts/families/Montserrat.json"
+local FONT_TITLE = Font.new(FONT_FAMILY, Enum.FontWeight.ExtraBold)
+local FONT_BOLD = Font.new(FONT_FAMILY, Enum.FontWeight.Bold)
+local FONT_BODY = Font.new(FONT_FAMILY, Enum.FontWeight.SemiBold)
+
+local OURS = "QuestTheme" -- prefix for the UI modifiers this script adds
+
+-- Remembered role of each element, so restyling twice gives the same result.
+local roles = setmetatable({}, { __mode = "k" })
+
+--------------------------------------------------------------------------------
+-- Helpers that add/replace UI modifiers
+--------------------------------------------------------------------------------
+
+local function ensure(gui, className, name)
+	local existing = gui:FindFirstChild(name)
+	if existing and existing:IsA(className) then
+		return existing
+	end
+	local inst = Instance.new(className)
+	inst.Name = name
+	inst.Parent = gui
+	return inst
+end
+
+-- Turns off the game's own modifiers of this class so they don't fight ours.
+local function disableOthers(gui, className, keepName, filter)
+	for _, child in gui:GetChildren() do
+		if child:IsA(className) and child.Name ~= keepName and (not filter or filter(child)) then
+			child.Enabled = false
+		end
+	end
+end
+
+local function gradient(gui, top, bottom)
+	disableOthers(gui, "UIGradient", OURS .. "Gradient")
+	local g = ensure(gui, "UIGradient", OURS .. "Gradient")
+	g.Color = ColorSequence.new(top, bottom)
+	g.Rotation = 90 -- top to bottom
+	g.Enabled = true
+	gui.BackgroundColor3 = Color3.new(1, 1, 1) -- the gradient tints this
+	gui.BackgroundTransparency = 0
+end
+
+local function solid(gui, color)
+	disableOthers(gui, "UIGradient", "")
+	gui.BackgroundColor3 = color
+	gui.BackgroundTransparency = 0
+end
+
+local function border(gui, color, thickness)
+	disableOthers(gui, "UIStroke", OURS .. "Border", function(s)
+		return s.ApplyStrokeMode == Enum.ApplyStrokeMode.Border
+	end)
+	local s = ensure(gui, "UIStroke", OURS .. "Border")
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	s.Color = color
+	s.Thickness = thickness
+	s.Transparency = 0
+	s.Enabled = true
+end
+
+local function corners(gui, radius)
+	local own = gui:FindFirstChild(OURS .. "Corner")
+	local theirs = gui:FindFirstChildOfClass("UICorner")
+	if theirs and theirs ~= own then
+		theirs.CornerRadius = radius
+		return
+	end
+	ensure(gui, "UICorner", OURS .. "Corner").CornerRadius = radius
+end
+
+local function hideBackgroundArt(gui)
+	-- Panels drawn with an image: hide the old art so the new style shows.
+	if gui:IsA("ImageLabel") or gui:IsA("ImageButton") then
+		gui.ImageTransparency = 1
+	end
+end
+
+local function styleText(gui, font, color, outline)
+	gui.FontFace = font
+	gui.TextColor3 = color
+	gui.TextStrokeColor3 = COLORS.Outline
+	gui.TextStrokeTransparency = outline and 0.35 or 1
+	-- Recolour any text outline strokes the game already had.
+	for _, s in gui:GetChildren() do
+		if s:IsA("UIStroke") and s.ApplyStrokeMode == Enum.ApplyStrokeMode.Contextual then
+			s.Color = COLORS.Outline
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Working out what each element is
+--------------------------------------------------------------------------------
+
+local function isSquareish(size, maxSide)
+	return size.X <= maxSide and size.Y <= maxSide and math.abs(size.X / size.Y - 1) < 0.35
+end
+
+local function isCloseButton(gui)
+	local name = gui.Name:lower()
+	if name:find("close") or name:find("exit") then
+		return true
+	end
+	if gui:IsA("TextButton") then
+		local text = gui.Text:gsub("%s", "")
+		return text == "X" or text == "x" or text == "✕" or text == "✖" or text == "×"
+	end
+	return false
+end
+
+local function hasPanelBackground(gui)
+	if gui.BackgroundTransparency < 0.95 then
+		return true
+	end
+	-- A big image with children inside it is panel art rather than an icon.
+	if (gui:IsA("ImageLabel") or gui:IsA("ImageButton")) and gui.Image ~= "" and gui.ImageTransparency < 0.95 then
+		local size = gui.AbsoluteSize
+		return size.X > 150 and size.Y > 80 and #gui:GetChildren() > 0
+	end
+	return false
+end
+
+-- Roles that draw a visible panel (invisible containers and plain text don't count).
+local PANEL_ROLES = {
+	window = true, header = true, card = true, textpanel = true,
+	slot = true, button = true, close = true, track = true,
+}
+
+-- Nearest ancestor we've already styled as a visible panel (or nil).
+local function styledAncestor(gui, screenGui)
+	local node = gui.Parent
+	while node and node ~= screenGui do
+		if PANEL_ROLES[roles[node]] then
+			return node, roles[node]
+		end
+		node = node.Parent
+	end
+	return nil, nil
+end
+
+local function insideRole(gui, screenGui, role)
+	local node = gui.Parent
+	while node and node ~= screenGui do
+		if roles[node] == role then
+			return node
+		end
+		node = node.Parent
+	end
+	return nil
+end
+
+local function classify(gui, screenGui)
+	if gui:GetAttribute("NoTheme") then
+		return "skip"
+	end
+	local size = gui.AbsoluteSize
+	if size.X < 2 or size.Y < 2 then
+		return nil -- not laid out yet; try again when it gets a size
+	end
+	local ancestor, ancestorRole = styledAncestor(gui, screenGui)
+
+	if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+		if isCloseButton(gui) then
+			return "close"
+		end
+		if gui:IsA("ImageButton") then
+			local hasText = gui:FindFirstChildWhichIsA("TextLabel") ~= nil
+			if isSquareish(size, 160) then
+				return "slot" -- bag item buttons
+			end
+			if not hasText and gui.BackgroundTransparency >= 0.95 then
+				return "skip" -- plain icon button
+			end
+		end
+		return "button"
+	end
+
+	if gui:IsA("TextLabel") or gui:IsA("TextBox") then
+		if gui.BackgroundTransparency < 0.95 and size.X > 200 and size.Y > 70 then
+			return "textpanel" -- e.g. a tutorial dialogue box
+		end
+		return "text"
+	end
+
+	if gui:IsA("Frame") or gui:IsA("ScrollingFrame") or gui:IsA("ImageLabel") or gui:IsA("CanvasGroup") then
+		if ancestorRole == "track" then
+			return "fill"
+		end
+		if not hasPanelBackground(gui) then
+			return gui:IsA("ScrollingFrame") and "scroll" or "skip"
+		end
+		if size.X / size.Y > 6 and size.Y < 44 then
+			return "track"
+		end
+		if isSquareish(size, 160) and ancestor then
+			return "slot"
+		end
+		if not ancestor then
+			return "window"
+		end
+		local window = insideRole(gui, screenGui, "window")
+		if window then
+			local wPos, wSize = window.AbsolutePosition, window.AbsoluteSize
+			local topGap = gui.AbsolutePosition.Y - wPos.Y
+			if topGap <= wSize.Y * 0.08 and size.X >= wSize.X * 0.7 and size.Y <= wSize.Y * 0.25 then
+				return "header"
+			end
+		end
+		return "card"
+	end
+
+	return "skip"
+end
+
+--------------------------------------------------------------------------------
+-- Applying the look
+--------------------------------------------------------------------------------
+
+local function textLooksLikeXP(text)
+	return text:upper():find("XP") ~= nil
+end
+
+local function applyText(gui, screenGui)
+	local text = gui.Text
+	local big = gui.TextSize >= 24 or (gui.TextScaled and gui.AbsoluteSize.Y >= 34)
+	if insideRole(gui, screenGui, "header") then
+		styleText(gui, FONT_TITLE, COLORS.Text, true)
+	elseif textLooksLikeXP(text) then
+		styleText(gui, FONT_TITLE, COLORS.Gold, true)
+	elseif insideRole(gui, screenGui, "close") then
+		styleText(gui, FONT_TITLE, COLORS.Close, true)
+	elseif big or insideRole(gui, screenGui, "button") or insideRole(gui, screenGui, "slot") then
+		styleText(gui, FONT_BOLD, COLORS.Text, false)
+	elseif insideRole(gui, screenGui, "track") then
+		styleText(gui, FONT_BOLD, COLORS.Text, true) -- "0/25" on progress bars
+	elseif insideRole(gui, screenGui, "card") or insideRole(gui, screenGui, "textpanel") or insideRole(gui, screenGui, "window") then
+		styleText(gui, FONT_BODY, COLORS.SubText, false)
+	else
+		styleText(gui, FONT_BOLD, COLORS.Text, false)
+	end
+end
+
+local APPLY = {
+	window = function(gui)
+		hideBackgroundArt(gui)
+		gradient(gui, COLORS.WindowTop, COLORS.WindowBottom)
+		border(gui, COLORS.WindowBorder, 3)
+		corners(gui, UDim.new(0, 6))
+	end,
+	header = function(gui)
+		hideBackgroundArt(gui)
+		gradient(gui, COLORS.HeaderTop, COLORS.HeaderBottom)
+		border(gui, COLORS.HeaderBorder, 2)
+		corners(gui, UDim.new(0, 4))
+	end,
+	card = function(gui)
+		hideBackgroundArt(gui)
+		gradient(gui, COLORS.CardTop, COLORS.CardBottom)
+		border(gui, COLORS.CardBorder, 2)
+		corners(gui, UDim.new(0, 8))
+	end,
+	textpanel = function(gui, screenGui)
+		gradient(gui, COLORS.CardTop, COLORS.CardBottom)
+		border(gui, COLORS.CardBorder, 2)
+		corners(gui, UDim.new(0, 8))
+		styleText(gui, FONT_BOLD, COLORS.Text, false)
+	end,
+	slot = function(gui)
+		solid(gui, COLORS.Slot)
+		border(gui, COLORS.SlotBorder, 1.5)
+		corners(gui, UDim.new(0, 4))
+		if gui:IsA("TextButton") then
+			styleText(gui, FONT_TITLE, COLORS.Text, true)
+		end
+	end,
+	button = function(gui)
+		if gui:IsA("ImageButton") and gui:FindFirstChildWhichIsA("TextLabel") then
+			hideBackgroundArt(gui)
+		end
+		gradient(gui, COLORS.ButtonTop, COLORS.ButtonBottom)
+		border(gui, COLORS.ButtonBorder, 2)
+		corners(gui, UDim.new(0, 4))
+		if gui:IsA("TextButton") then
+			styleText(gui, FONT_BOLD, COLORS.Text, false)
+		end
+	end,
+	close = function(gui)
+		gui.BackgroundTransparency = 1
+		if gui:IsA("TextButton") then
+			styleText(gui, FONT_TITLE, COLORS.Close, true)
+		end
+	end,
+	track = function(gui)
+		hideBackgroundArt(gui)
+		solid(gui, COLORS.Track)
+		border(gui, COLORS.TrackBorder, 2)
+		corners(gui, UDim.new(0.5, 0))
+	end,
+	fill = function(gui)
+		corners(gui, UDim.new(0.5, 0)) -- keep the fill colour, just round it
+	end,
+	scroll = function(gui)
+		gui.ScrollBarImageColor3 = Color3.fromRGB(120, 124, 136)
+	end,
+	text = function(gui, screenGui)
+		applyText(gui, screenGui)
+	end,
+}
+
+local function styleOne(gui, screenGui)
+	if not gui:IsA("GuiObject") then
+		return
+	end
+	local role = roles[gui]
+	if not role then
+		role = classify(gui, screenGui)
+		if not role then
+			return
+		end
+		roles[gui] = role
+	end
+	local apply = APPLY[role]
+	if apply then
+		local ok, err = pcall(apply, gui, screenGui)
+		if not ok then
+			warn("[QuestTheme] couldn't style " .. gui:GetFullName() .. ": " .. tostring(err))
+		end
+	end
+end
+
+local function styleAll(screenGui)
+	-- GetDescendants lists parents before children, which classify relies on.
+	for _, gui in screenGui:GetDescendants() do
+		styleOne(gui, screenGui)
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Hooking up to the player's screens
+--------------------------------------------------------------------------------
+
+local function isTarget(screenGui)
+	if not screenGui:IsA("LayerCollector") then
+		return false
+	end
+	local name = screenGui.Name:lower()
+	for _, word in TARGET_GUIS do
+		if name:find(word, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
+local function watch(screenGui)
+	if not isTarget(screenGui) then
+		return
+	end
+	local pending = false
+	local function schedule()
+		if pending then
+			return
+		end
+		pending = true
+		task.delay(0.05, function()
+			pending = false
+			if screenGui.Parent then
+				styleAll(screenGui)
+			end
+		end)
+	end
+	local function watchSize(gui)
+		if gui:IsA("GuiObject") then
+			-- Elements that start hidden or unsized get styled once they're laid out.
+			gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+				if not roles[gui] then
+					schedule()
+				end
+			end)
+		end
+	end
+	for _, gui in screenGui:GetDescendants() do
+		watchSize(gui)
+	end
+	screenGui.DescendantAdded:Connect(function(gui)
+		watchSize(gui)
+		schedule() -- e.g. new items added to the bag
+	end)
+	screenGui:GetPropertyChangedSignal("Enabled"):Connect(schedule)
+	schedule()
+end
+
+local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+playerGui.ChildAdded:Connect(watch)
+for _, screenGui in playerGui:GetChildren() do
+	watch(screenGui)
+end
