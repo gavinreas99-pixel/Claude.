@@ -25,6 +25,15 @@ PACKAGES = {
         ("PistolServer.server.luau", "PistolServer", "Script", 1),
         ("PistolClient.client.luau", "PistolClient", "Script", 2),
     ],
+    "TutorialAndAlerts": [
+        ("Config.luau", "Config", "ModuleScript", None),
+        ("Style.luau", "Style", "ModuleScript", None),
+        ("PlayerStats.luau", "PlayerStats", "ModuleScript", None),
+        ("Notify.luau", "Notify", "ModuleScript", None),
+        ("TutorialServer.server.luau", "TutorialServer", "Script", 1),
+        ("Tutorial.client.luau", "Tutorial", "Script", 2),
+        ("Alerts.client.luau", "Alerts", "Script", 2),
+    ],
 }
 
 

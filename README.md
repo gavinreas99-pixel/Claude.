@@ -1,10 +1,11 @@
-# Jade Jungle Goblins, Quest-style UI & Pistol
+# Jade Jungle Goblins, Quest-style UI, Pistol & Tutorial
 
-This repo has three drop-in packages. Each one is a single file you drag into **ReplicatedStorage** in Roblox Studio:
+This repo has four drop-in packages. Each one is a single file you drag into **ReplicatedStorage** in Roblox Studio:
 
 - **`JadeJungleGoblins.rbxmx`** adds animated goblin enemies (see below).
 - **`QuestThemeUI.rbxmx`** restyles your Bag and Tutorial screens to look like the Quests window (see [Quest-style UI](#quest-style-ui)).
 - **`RealisticPistol.rbxmx`** adds a detailed, working pistol that every player spawns with (see [Pistol](#pistol)).
+- **`TutorialAndAlerts.rbxmx`** adds a step-by-step visual tutorial, plus pop-ups when a player levels up or unlocks an island (see [Tutorial and notifications](#tutorial-and-notifications)).
 
 ## Jade Jungle Goblins
 
@@ -108,3 +109,65 @@ These goblins are built from smooth rounded parts, so they look like the referen
 **Sounds:** Roblox doesn't include gun sounds, so the pistol is silent until you add some. Find sounds in the Creator Store (search "pistol shot", "pistol reload", "dry fire") and paste their IDs into `Config.Sounds`, like `Fire = "rbxassetid://123456"`.
 
 **Don't want everyone to spawn with it?** Set `GiveOnSpawn = false`. The tool then sits in the `RealisticPistol` folder for you to give out yourself, for example from a shop.
+
+## Tutorial and notifications
+
+`TutorialAndAlerts.rbxmx` adds a guided tutorial that explains the game one step at a time. It also shows a big banner whenever a player levels up or unlocks a new island.
+
+![Tutorial and notifications preview](docs/tutorial-alerts-preview.png)
+
+*Mock-up of the tutorial card, a highlighted button, the level-up banner with a pop-up, and the island banner.*
+
+**Install:** drag `TutorialAndAlerts.rbxmx` into **ReplicatedStorage** and press Play. The tutorial opens a couple of seconds after a new player spawns.
+
+### The tutorial
+
+Each step is a card with:
+- **An icon and a short explanation** of one thing (walking, jumping, the camera, the pistol, goblins, the bag, quests, levels and islands).
+- **Text for the player's device.** Keyboard, phone and controller players each see their own controls, drawn as keycaps like `W` `A` `S` `D`. If a player switches device mid-step, the card updates.
+- **A goal to try**, like "Walk 30 studs" or "Open your bag". The goal box has a progress bar and ticks green when it's done, then the tutorial moves on by itself. Players can always press **Skip step** if they don't want to do it.
+- **Highlights.** Steps about a button dim the screen, put a pulsing gold ring around the button and point an arrow at it. Steps about something in the world (like the goblins) put a marker over it with its distance and draw a gold trail to it. When the target is off screen, an arrow on the screen edge shows which way to turn.
+- **A progress bar** ("Step 3 of 9") plus Back, Next and Skip buttons. Skipping asks to confirm first.
+
+The tutorial only shows once per player; finishing or skipping it is saved in a DataStore. The round **?** button on the left replays it anytime. Steps for things your game doesn't have (no pistol, no bag button, no goblins) are left out automatically.
+
+**Your old tutorial screen** is hidden so two tutorials don't show at once (any ScreenGui with "tutorial" in its name). Set `Tutorial.HideOldTutorial = false` in Config to keep it.
+
+**Change the steps** in `TutorialAndAlerts > Config > Steps`. Each step's options are explained at the top of the file. You can add your own steps with goals like `Move`, `Jump`, `Look`, `Equip`, `Open`, `Reach` and `Level`.
+
+**Saving in Studio:** DataStores only work in Studio if you turn on **Game Settings > Security > Enable Studio Access to API Services**. Without it the tutorial still works, but shows on every visit.
+
+### Level-up and island notifications
+
+- **Level up:** a gold badge with the new level, spinning light rays, confetti and a "LEVEL UP!" ribbon. Below it, a card says what the player reached, lists any rewards for that level, and says which island unlocks next and how many levels to go.
+- **Island unlocked:** a "NEW ISLAND UNLOCKED" window with the island's picture, name, description, the level that unlocked it and how to get there.
+- **Small pop-ups** in the top-right corner, for example "Tutorial complete!". Your own scripts can show these too.
+
+Banners wait their turn, so a level-up that also unlocks an island shows one after the other.
+
+**How it finds the level:** it looks for a `Level` attribute on the player, a `Level` value in `leaderstats`, or a `Level` value anywhere else under the player (like a `Data` folder). If yours has another name, add it to `LevelNames` in Config. Data that loads in the first few seconds after joining doesn't count as a level up, so returning players don't get a banner for their saved level.
+
+**Set up your islands** in `Config.Islands`, with the level that unlocks each one:
+
+```lua
+Config.Islands = {
+	{ Name = "Jade Jungle", Level = 1, Description = "Overgrown ruins full of goblins." },
+	{ Name = "Frost Peaks", Level = 10, Description = "Icy cliffs and snow trolls.", Image = "rbxassetid://123456" },
+}
+```
+
+Islands are also detected automatically if your game stores unlocks as a true/false attribute with "island" in its name (like `Island_FrostPeaks`), or as values in a folder with "island" in its name (like `UnlockedIslands > Frost Peaks`).
+
+**Show them from your own scripts** (for example when an island is unlocked by a quest instead of a level):
+
+```lua
+local Notify = require(game.ReplicatedStorage.TutorialAndAlerts.Notify)
+Notify.IslandUnlocked(player, "Frost Peaks")
+Notify.LevelUp(player, 12)
+Notify.Toast(player, "Quest complete", "+50 XP")
+Notify.ShowTutorial(player) -- replay the tutorial
+```
+
+The same banner never shows twice, so it's fine if both your script and the automatic detection spot the same change.
+
+**Settings:** `Config` also has level rewards (`LevelRewards`), how long banners stay up, confetti on or off, and sound IDs for level-ups, islands, pop-ups and finished tutorial goals.

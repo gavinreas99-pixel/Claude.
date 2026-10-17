@@ -12,6 +12,9 @@
       },
       "RealisticPistol": {
         "$path": "src/RealisticPistol"
+      },
+      "TutorialAndAlerts": {
+        "$path": "src/TutorialAndAlerts"
       }
     }
   }

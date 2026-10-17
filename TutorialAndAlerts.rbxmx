@@ -1,0 +1,2762 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<Item class="Folder" referent="RBX0">
+		<Properties><string name="Name">TutorialAndAlerts</string></Properties>
+		<Item class="ModuleScript" referent="RBX1">
+			<Properties>
+				<string name="Name">Config</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Tutorial and notification settings. Edit the text and numbers here.
+
+	TUTORIAL STEPS
+	The guided tutorial shows Steps in order, one card at a time. A step can have:
+
+	  Title      Heading of the card.
+	  Icon       A big emoji, or an image like "rbxassetid://123456".
+	  Body       The explanation (rich text: <b>bold</b>, <i>italic</i>, <font color="#ffde28">colour</font>).
+	             Use { Keyboard = "...", Touch = "...", Gamepad = "..." } for different text on
+	             each device. Missing devices fall back to Keyboard.
+	             {Islands} is replaced with the island list below, {Tool} with the pistol name.
+	  Keys       Key hints drawn as keycaps, e.g. { "W", "A", "S", "D" } (per-device table allowed).
+	  Tip        A short extra hint shown in gold under the explanation.
+	  Highlight  Something to point at while the step is open:
+	               { Gui = { "bag", "inventory" } }      a button on screen whose name or text contains a word
+	               { Tag = "JadeGoblin" }                 the nearest thing with this CollectionService tag
+	               { Path = { "JadeJungle", "GoblinSpawns" } } a part (or the first part in a folder) in Workspace
+	  Goal       Something the player does to finish the step. It gets ticked off and the
+	             tutorial moves on by itself. Players can always press Next to skip ahead.
+	               { Type = "Move", Distance = 30 }       walk this many studs
+	               { Type = "Jump" }
+	               { Type = "Look", Degrees = 120 }       turn the camera
+	               { Type = "Equip", Tool = "Pistol" }    hold a tool (leave Tool out for any tool)
+	               { Type = "Open", Gui = { "bag" } }     open a window whose name contains a word
+	               { Type = "Reach", Tag = "JadeGoblin", Radius = 40 }  (or Path = { ... })
+	               { Type = "Level", Level = 2 }
+	             Add Text = "..." to change how the goal is worded.
+	  OnlyIf     Skip the step when something isn't in your game, e.g. { Tool = "Pistol" },
+	             { Tag = "JadeGoblin" }, { Gui = { "bag" } } or { Path = { ... } }.
+	  Dim        true/false: darken the screen behind the card. By default it darkens for
+	             reading steps and stays clear for steps where the player has to move.
+]]
+
+local Config = {}
+
+Config.Tutorial = {
+	Enabled = true,
+	ShowOnFirstJoin = true, -- open automatically for players who haven't finished it
+	SaveProgress = true, -- remember (in a DataStore) who finished it, so it only shows once
+	DataStoreName = "TutorialAndAlerts",
+	StartDelay = 2, -- seconds after spawning before it opens
+	AutoAdvanceDelay = 1.2, -- seconds to wait after a goal is done before moving on
+	HelpButton = true, -- the round "?" button on the left that replays the tutorial
+	HelpButtonPosition = UDim2.new(0, 14, 0.5, 0), -- move it if it covers your own buttons
+
+	-- Hide the game's old tutorial screen so two tutorials don't show at once.
+	-- Any ScreenGui whose name contains one of these words is turned off.
+	HideOldTutorial = true,
+	OldTutorialNames = { "tutorial" },
+}
+
+Config.ToolName = "Pistol" -- used for {Tool} in the text below
+
+Config.Steps = {
+	{
+		Title = "Welcome, adventurer!",
+		Icon = "👋",
+		Body = "This short guide shows you how to play, one thing at a time.\n\n"
+			.. "Some steps ask you to try something. A <b>goal box</b> shows what to do, and it ticks off "
+			.. "when you've done it. Then the guide moves on by itself.",
+		Tip = "Press Next and Back to move between steps, or X to skip. The ? button on the left replays this guide.",
+	},
+	{
+		Title = "Walking",
+		Icon = "🏃",
+		Body = {
+			Keyboard = "Hold <b>W</b> to walk forward. <b>A</b> and <b>D</b> walk left and right, <b>S</b> walks backwards. "
+				.. "The arrow keys work too.\n\nYou always walk the way the camera faces.",
+			Touch = "Put your thumb on the bottom-left of the screen and drag. A <b>joystick</b> appears, "
+				.. "and you walk the way you drag it.\n\nYou always walk the way the camera faces.",
+			Gamepad = "Push the <b>left stick</b> to walk. Push it a little to walk slowly, or all the way to run.",
+		},
+		Keys = { Keyboard = { "W", "A", "S", "D" }, Gamepad = { "Left stick" } },
+		Goal = { Type = "Move", Distance = 30, Text = "Walk 30 studs in any direction" },
+		Tip = "The goal bar fills up as you walk.",
+	},
+	{
+		Title = "Jumping",
+		Icon = "🦘",
+		Body = {
+			Keyboard = "Press <b>Space</b> to jump. Jump onto ledges, over rocks and across gaps. "
+				.. "Hold <b>Space</b> to keep jumping.",
+			Touch = "Tap the round <b>jump button</b> in the bottom-right corner to jump onto ledges, "
+				.. "over rocks and across gaps.",
+			Gamepad = "Press <b>A</b> to jump onto ledges, over rocks and across gaps.",
+		},
+		Keys = { Keyboard = { "Space" }, Gamepad = { "A" } },
+		Goal = { Type = "Jump", Text = "Jump once" },
+	},
+	{
+		Title = "Looking around",
+		Icon = "🎥",
+		Body = {
+			Keyboard = "Hold the <b>right mouse button</b> and move the mouse to turn the camera. "
+				.. "Scroll the <b>mouse wheel</b> to zoom in and out.\n\nZoom all the way in for first-person view.",
+			Touch = "Drag one finger across an empty part of the screen to turn the camera. "
+				.. "<b>Pinch</b> with two fingers to zoom in and out.",
+			Gamepad = "Push the <b>right stick</b> to turn the camera. Press it in to zoom.",
+		},
+		Keys = { Keyboard = { "Right mouse", "Mouse wheel" }, Gamepad = { "Right stick" } },
+		Goal = { Type = "Look", Degrees = 120, Text = "Turn the camera around" },
+	},
+	{
+		Title = "Your {Tool}",
+		Icon = "🔫",
+		OnlyIf = { Tool = "Pistol" },
+		Body = {
+			Keyboard = "Your {Tool} is in the <b>hotbar</b> at the bottom of the screen. Press <b>1</b> or click it to take it out.\n\n"
+				.. "<b>Click</b> to shoot at the middle of the crosshair. The box in the bottom-right shows how many "
+				.. "bullets are left. Press <b>R</b> to reload.",
+			Touch = "Your {Tool} is in the <b>hotbar</b> at the bottom of the screen. Tap it to take it out.\n\n"
+				.. "<b>Tap</b> where you want to shoot. When you run out of bullets, tap the <b>RELOAD</b> button.",
+			Gamepad = "Your {Tool} is in the <b>hotbar</b>. Press <b>LB</b> or <b>RB</b> to pick it, then <b>RT</b> to shoot.",
+		},
+		Keys = { Keyboard = { "1", "Click", "R" }, Gamepad = { "LB / RB", "RT" } },
+		Goal = { Type = "Equip", Tool = "Pistol", Text = "Take out your {Tool}" },
+		Tip = "Headshots do double damage.",
+	},
+	{
+		Title = "Goblins",
+		Icon = "👺",
+		OnlyIf = { Tag = "JadeGoblin" },
+		Highlight = { Tag = "JadeGoblin" },
+		Body = "Goblins live in the <b>Jade Jungle</b>. The gold arrow points to the nearest one.\n\n"
+			.. "When you get close, they run at you and swing their swords. Keep your distance and shoot them. "
+			.. "Defeated goblins come back after a while.",
+		Goal = { Type = "Reach", Tag = "JadeGoblin", Radius = 60, Text = "Get close to a goblin" },
+		Tip = "Watch your health bar. If it gets low, back away and let it refill.",
+	},
+	{
+		Title = "Your bag",
+		Icon = "🎒",
+		OnlyIf = { Gui = { "bag", "inventory", "backpack" } },
+		Highlight = { Gui = { "bag", "inventory", "backpack" } },
+		Body = "This button opens your <b>Bag</b>. It holds everything you collect.\n\n"
+			.. "Click an item to see what it does. Use or equip it from there.",
+		Goal = { Type = "Open", Gui = { "bag", "inventory", "backpack" }, Text = "Open your bag" },
+	},
+	{
+		Title = "Quests",
+		Icon = "📜",
+		OnlyIf = { Gui = { "quest" } },
+		Highlight = { Gui = { "quest" } },
+		Body = "This button opens <b>Quests</b>. Each quest is a small job, like defeating goblins or collecting items.\n\n"
+			.. "The bar on each quest shows your progress. When it fills, claim the reward to get "
+			.. "<font color=\"#ffde28\"><b>XP</b></font>.",
+		Goal = { Type = "Open", Gui = { "quest" }, Text = "Open your quests" },
+	},
+	{
+		Title = "Levels and XP",
+		Icon = "⭐",
+		Body = "You earn <font color=\"#ffde28\"><b>XP</b></font> from quests and from defeating enemies. "
+			.. "When you have enough, you <b>level up</b>, and a big banner shows what you unlocked.\n\n"
+			.. "Higher levels unlock stronger gear and new places to explore.",
+		Tip = "Quests usually give more XP than fighting.",
+	},
+	{
+		Title = "Islands",
+		Icon = "🏝",
+		Body = "The world is made of <b>islands</b>. You unlock new ones as you level up:\n\n{Islands}\n\n"
+			.. "When a new island opens, a banner tells you how to get there.",
+	},
+	{
+		Title = "You're ready!",
+		Icon = "🏆",
+		Body = "That's everything you need to get started. Go take on the goblins and do some quests.\n\n"
+			.. "You can replay this guide anytime with the <b>?</b> button on the left of the screen.",
+	},
+}
+
+--------------------------------------------------------------------------------
+-- Level and island notifications
+--------------------------------------------------------------------------------
+
+-- Where the player's level is found. The scripts look for, in order:
+--   an attribute on the player with one of these names
+--   a number value with one of these names in leaderstats
+--   a number value with one of these names anywhere else under the player (e.g. a Data folder)
+Config.LevelNames = { "Level", "Lvl", "LV" }
+
+-- Islands and the level that unlocks each. When a player reaches the level, an
+-- "Island unlocked" banner shows. Replace these with your game's islands.
+-- Image is optional ("rbxassetid://..."), and Hint says how to get there.
+Config.Islands = {
+	{ Name = "Jade Jungle", Level = 1, Description = "Overgrown ruins full of goblins." },
+	-- { Name = "Frost Peaks", Level = 10, Description = "Icy cliffs and snow trolls.", Image = "" },
+	-- { Name = "Ember Isle", Level = 25, Description = "A volcano that never stops smoking." },
+}
+Config.IslandHint = "Open the map or use a portal to travel there."
+
+-- Islands are also detected when your game unlocks them some other way:
+--   an attribute on the player with "island" in its name set to true, e.g. "Island_FrostPeaks"
+--   a value in a folder under the player with "island" in its name, e.g. UnlockedIslands > "Frost Peaks"
+-- Server scripts can also show the banner themselves; see the Notify module.
+Config.DetectIslands = true
+
+-- Extra lines shown on the level-up banner when a player reaches these levels.
+Config.LevelRewards = {
+	-- [5] = "New quests at the jungle temple",
+	-- [10] = "Frost Peaks unlocked",
+}
+
+-- Data saved by your game usually loads a few seconds after joining. Level and
+-- island changes in this window are treated as loading, not as a level up.
+Config.JoinGraceSeconds = 8
+
+Config.BannerTime = 4 -- seconds a level-up / island banner stays up
+Config.ToastTime = 4 -- seconds a small notification stays up
+Config.Confetti = true
+
+-- Sound IDs, e.g. "rbxassetid://123456" from the Creator Store. "" = silent.
+Config.Sounds = {
+	LevelUp = "",
+	Island = "",
+	Toast = "",
+	StepDone = "",
+}
+Config.Volume = 0.6
+
+return Config
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX2">
+			<Properties>
+				<string name="Name">Style</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Shared look for the tutorial and the notifications: the same dark navy,
+	red and gold as the Quests window, plus small helpers for building UI.
+]]
+
+local SoundService = game:GetService("SoundService")
+
+local Style = {}
+
+Style.Colors = {
+	WindowTop = Color3.fromRGB(14, 20, 34),
+	WindowBottom = Color3.fromRGB(6, 9, 16),
+	WindowBorder = Color3.fromRGB(122, 8, 8),
+	HeaderTop = Color3.fromRGB(176, 12, 12),
+	HeaderBottom = Color3.fromRGB(98, 0, 0),
+	CardTop = Color3.fromRGB(18, 30, 52),
+	CardBottom = Color3.fromRGB(5, 9, 18),
+	CardBorder = Color3.fromRGB(40, 60, 94),
+	Slot = Color3.fromRGB(8, 10, 15),
+	SlotBorder = Color3.fromRGB(44, 48, 60),
+	ButtonTop = Color3.fromRGB(36, 36, 40),
+	ButtonBottom = Color3.fromRGB(14, 14, 16),
+	ButtonBorder = Color3.fromRGB(64, 64, 70),
+	GoldTop = Color3.fromRGB(255, 226, 82),
+	GoldBottom = Color3.fromRGB(214, 146, 10),
+	GoldBorder = Color3.fromRGB(120, 72, 0),
+	Track = Color3.fromRGB(18, 20, 24),
+	Text = Color3.new(1, 1, 1),
+	SubText = Color3.fromRGB(196, 202, 214),
+	DarkText = Color3.fromRGB(40, 24, 0),
+	Gold = Color3.fromRGB(255, 222, 40),
+	Green = Color3.fromRGB(70, 214, 96),
+	Close = Color3.fromRGB(236, 22, 34),
+	Outline = Color3.new(0, 0, 0),
+}
+
+local FONT_FAMILY = "rbxasset://fonts/families/Montserrat.json"
+Style.FontTitle = Font.new(FONT_FAMILY, Enum.FontWeight.ExtraBold)
+Style.FontBold = Font.new(FONT_FAMILY, Enum.FontWeight.Bold)
+Style.FontBody = Font.new(FONT_FAMILY, Enum.FontWeight.SemiBold)
+
+function Style.make(class, props, parent)
+	local inst = Instance.new(class)
+	for k, v in props do
+		inst[k] = v
+	end
+	inst.Parent = parent
+	return inst
+end
+
+local make = Style.make
+
+function Style.gradient(gui, top, bottom, rotation)
+	gui.BackgroundColor3 = Color3.new(1, 1, 1) -- the gradient tints this
+	return make("UIGradient", { Rotation = rotation or 90, Color = ColorSequence.new(top, bottom) }, gui)
+end
+
+function Style.border(gui, color, thickness)
+	return make("UIStroke", { Color = color, Thickness = thickness, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, gui)
+end
+
+function Style.corner(gui, radius)
+	return make("UICorner", { CornerRadius = radius or UDim.new(0, 8) }, gui)
+end
+
+function Style.label(props, parent)
+	local defaults = {
+		BackgroundTransparency = 1,
+		FontFace = Style.FontBody,
+		TextColor3 = Style.Colors.Text,
+		TextSize = 16,
+		TextWrapped = true,
+		RichText = true,
+	}
+	for k, v in props do
+		defaults[k] = v
+	end
+	return make("TextLabel", defaults, parent)
+end
+
+-- An emoji/text icon, or an image when given an asset id.
+function Style.icon(icon, props, parent)
+	if typeof(icon) == "string" and (icon:find("rbxassetid://", 1, true) or icon:find("rbxasset://", 1, true) or icon:find("http", 1, true)) then
+		local image = make("ImageLabel", { BackgroundTransparency = 1, Image = icon, ScaleType = Enum.ScaleType.Fit }, parent)
+		for k, v in props do
+			if k ~= "TextSize" then
+				image[k] = v
+			end
+		end
+		return image
+	end
+	local text = Style.label({ Text = icon or "", TextScaled = true, RichText = false, FontFace = Style.FontBold }, parent)
+	for k, v in props do
+		text[k] = v
+	end
+	return text
+end
+
+-- A button with the dark (or gold) gradient look. Returns the button.
+function Style.button(text, gold, props, parent)
+	local c = Style.Colors
+	local button = make("TextButton", {
+		Text = text,
+		FontFace = Style.FontTitle,
+		TextSize = 16,
+		TextColor3 = gold and c.DarkText or c.Text,
+		AutoButtonColor = true,
+		BorderSizePixel = 0,
+	}, parent)
+	for k, v in props do
+		button[k] = v
+	end
+	Style.gradient(button, gold and c.GoldTop or c.ButtonTop, gold and c.GoldBottom or c.ButtonBottom)
+	Style.border(button, gold and c.GoldBorder or c.ButtonBorder, 2)
+	Style.corner(button, UDim.new(0, 6))
+	return button
+end
+
+-- Repaints a button made by Style.button as gold or dark.
+function Style.setGold(button, gold)
+	local c = Style.Colors
+	local g = button:FindFirstChildOfClass("UIGradient")
+	if g then
+		g.Color = ColorSequence.new(gold and c.GoldTop or c.ButtonTop, gold and c.GoldBottom or c.ButtonBottom)
+	end
+	local s = button:FindFirstChildOfClass("UIStroke")
+	if s then
+		s.Color = gold and c.GoldBorder or c.ButtonBorder
+	end
+	button.TextColor3 = gold and c.DarkText or c.Text
+end
+
+local soundCache = {}
+
+function Style.playSound(id, volume)
+	if not id or id == "" then
+		return
+	end
+	local sound = soundCache[id]
+	if not sound then
+		sound = make("Sound", { SoundId = id, Volume = volume or 0.6 }, SoundService)
+		soundCache[id] = sound
+	end
+	SoundService:PlayLocalSound(sound)
+end
+
+return Style
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX3">
+			<Properties>
+				<string name="Name">PlayerStats</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Finds the player's level and reports when it changes. The level can be an
+	attribute on the player, a value in leaderstats, or a value anywhere else
+	under the player (e.g. a Data folder). Names come from Config.LevelNames.
+]]
+
+local PlayerStats = {}
+
+local function matches(name, names)
+	name = name:lower()
+	for _, n in names do
+		if name == n:lower() then
+			return true
+		end
+	end
+	return false
+end
+
+local function numberOf(value)
+	if value:IsA("IntValue") or value:IsA("NumberValue") then
+		return value.Value
+	elseif value:IsA("StringValue") then
+		return tonumber(value.Value)
+	end
+	return nil
+end
+
+-- Calls onChange(newLevel, oldLevel) every time the level changes. oldLevel is
+-- nil the first time the level is found. Returns a function giving the
+-- current level (nil until it's found).
+function PlayerStats.watchLevel(player, names, onChange)
+	local level = nil
+	local found = false
+
+	local function set(new)
+		new = tonumber(new)
+		if new == nil or new == level then
+			return
+		end
+		local old = level
+		level = new
+		onChange(new, old)
+	end
+
+	local search
+
+	local function useAttribute(name)
+		found = true
+		player:GetAttributeChangedSignal(name):Connect(function()
+			set(player:GetAttribute(name))
+		end)
+		set(player:GetAttribute(name))
+	end
+
+	local function useValue(value)
+		found = true
+		local changed = value.Changed:Connect(function()
+			set(numberOf(value))
+		end)
+		value.AncestryChanged:Connect(function()
+			if not value:IsDescendantOf(player) then
+				changed:Disconnect()
+				found = false
+				search()
+			end
+		end)
+		set(numberOf(value))
+	end
+
+	function search()
+		if found then
+			return
+		end
+		for name, value in player:GetAttributes() do
+			if matches(name, names) and tonumber(value) then
+				useAttribute(name)
+				return
+			end
+		end
+		local leaderstats = player:FindFirstChild("leaderstats")
+		if leaderstats then
+			for _, value in leaderstats:GetChildren() do
+				if value:IsA("ValueBase") and matches(value.Name, names) and numberOf(value) then
+					useValue(value)
+					return
+				end
+			end
+		end
+		for _, value in player:GetDescendants() do
+			if value:IsA("ValueBase") and matches(value.Name, names) and numberOf(value) and not value:FindFirstAncestorOfClass("PlayerGui") then
+				useValue(value)
+				return
+			end
+		end
+	end
+
+	player.AttributeChanged:Connect(function(name)
+		if not found and matches(name, names) then
+			search()
+		end
+	end)
+	player.DescendantAdded:Connect(function(value)
+		if not found and value:IsA("ValueBase") and matches(value.Name, names) and not value:FindFirstAncestorOfClass("PlayerGui") then
+			task.defer(search) -- let the folder it's in finish replicating first
+		end
+	end)
+	search()
+
+	return function()
+		return level
+	end
+end
+
+return PlayerStats
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX4">
+			<Properties>
+				<string name="Name">Notify</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Show notifications from your own scripts.
+
+	From a server Script:
+		local Notify = require(game.ReplicatedStorage.TutorialAndAlerts.Notify)
+
+		Notify.IslandUnlocked(player, "Frost Peaks")               -- island banner; details come from Config.Islands
+		Notify.IslandUnlocked(player, "Frost Peaks", "Icy cliffs")  -- or give your own description
+		Notify.LevelUp(player, 12)                                   -- level-up banner (normally automatic)
+		Notify.Toast(player, "Quest complete", "+50 XP")             -- small pop-up in the corner
+		Notify.ToastAll("Double XP", "For the next 10 minutes!")     -- small pop-up for everyone
+		Notify.ShowTutorial(player)                                  -- open the tutorial from the start
+
+	From a LocalScript the same calls work for the local player.
+	The same banner never shows twice, so it's safe to call these even when
+	the automatic level / island detection also spots the change.
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local folder = script.Parent
+local remote, localEvent
+
+if RunService:IsServer() then
+	remote = folder:FindFirstChild("AlertRemote") or Instance.new("RemoteEvent")
+	remote.Name = "AlertRemote"
+	remote.Parent = folder
+	localEvent = folder:FindFirstChild("LocalAlert") or Instance.new("BindableEvent")
+	localEvent.Name = "LocalAlert"
+	localEvent.Parent = folder
+else
+	remote = folder:WaitForChild("AlertRemote")
+	localEvent = folder:WaitForChild("LocalAlert")
+end
+
+local function send(player, kind, ...)
+	if RunService:IsServer() then
+		remote:FireClient(player, kind, ...)
+	elseif player == Players.LocalPlayer then
+		localEvent:Fire(kind, ...)
+	end
+end
+
+local Notify = {}
+
+Notify.Remote = remote
+Notify.LocalEvent = localEvent
+
+function Notify.LevelUp(player, level)
+	send(player, "LevelUp", level)
+end
+
+function Notify.IslandUnlocked(player, islandName, description)
+	send(player, "Island", islandName, description)
+end
+
+function Notify.Toast(player, title, text)
+	send(player, "Toast", title, text)
+end
+
+function Notify.ToastAll(title, text)
+	if RunService:IsServer() then
+		remote:FireAllClients("Toast", title, text)
+	else
+		localEvent:Fire("Toast", title, text)
+	end
+end
+
+function Notify.ShowTutorial(player)
+	send(player, "ShowTutorial")
+end
+
+return Notify
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX5">
+			<Properties>
+				<string name="Name">TutorialServer</string>
+				<token name="RunContext">1</token>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Tutorial server: remembers which players have finished the tutorial (so it
+	only opens on their first visit) and sets up the notification remote.
+	This is a Script with RunContext = Server, so it runs from ReplicatedStorage.
+]]
+
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+
+local folder = script.Parent
+local Config = require(folder:WaitForChild("Config"))
+local Notify = require(folder:WaitForChild("Notify")) -- creates the remotes
+
+local DONE = "TutorialDone" -- player attribute the client reads
+
+local store = nil
+if Config.Tutorial.SaveProgress then
+	local ok, result = pcall(function()
+		return DataStoreService:GetDataStore(Config.Tutorial.DataStoreName)
+	end)
+	if ok then
+		store = result
+	else
+		warn("[TutorialAndAlerts] can't save tutorial progress: " .. tostring(result))
+	end
+end
+
+local warned = false
+local function storeWarn(err)
+	if not warned then
+		warned = true
+		-- In Studio this usually means "Enable Studio Access to API Services" is off.
+		warn("[TutorialAndAlerts] DataStore error, the tutorial will show every visit: " .. tostring(err))
+	end
+end
+
+local function key(player)
+	return "u" .. player.UserId
+end
+
+local function onPlayerAdded(player)
+	local done = false
+	if store then
+		local ok, result = pcall(function()
+			return store:GetAsync(key(player))
+		end)
+		if ok then
+			done = result == true
+		else
+			storeWarn(result)
+		end
+	end
+	if player.Parent then
+		player:SetAttribute(DONE, done)
+	end
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+for _, player in Players:GetPlayers() do
+	task.spawn(onPlayerAdded, player)
+end
+
+Notify.Remote.OnServerEvent:Connect(function(player, kind)
+	if kind ~= "TutorialDone" or player:GetAttribute(DONE) == true then
+		return
+	end
+	player:SetAttribute(DONE, true)
+	if store then
+		local ok, err = pcall(function()
+			store:SetAsync(key(player), true)
+		end)
+		if not ok then
+			storeWarn(err)
+		end
+	end
+end)
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX6">
+			<Properties>
+				<string name="Name">Tutorial</string>
+				<token name="RunContext">2</token>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Guided tutorial. Shows one card at a time with a picture, a clear
+	explanation, key hints for the player's device, and often a goal to try
+	("Walk 30 studs", "Open your bag") that ticks off by itself. While a step is
+	open it can light up a button on screen or point a gold arrow and trail at
+	something in the world.
+
+	It opens on a player's first visit (the server remembers who finished it),
+	and the round "?" button on the left replays it. Steps live in Config.Steps.
+	This is a Script with RunContext = Client, so it runs from ReplicatedStorage.
+]]
+
+local CollectionService = game:GetService("CollectionService")
+local GuiService = game:GetService("GuiService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local folder = script.Parent
+local Config = require(folder:WaitForChild("Config"))
+local Style = require(folder:WaitForChild("Style"))
+local PlayerStats = require(folder:WaitForChild("PlayerStats"))
+local Notify = require(folder:WaitForChild("Notify"))
+
+local settings = Config.Tutorial
+if not settings.Enabled then
+	return
+end
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local C = Style.Colors
+local make = Style.make
+
+local CARD_WIDTH = 540
+local SPOT_PAD = 8 -- gap between a highlighted button and the gold ring
+
+local gui = make("ScreenGui", {
+	Name = "GuideOverlay",
+	ResetOnSpawn = false,
+	IgnoreGuiInset = true,
+	DisplayOrder = 15,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+}, playerGui)
+
+local getLevel = PlayerStats.watchLevel(player, Config.LevelNames, function() end)
+
+local function tween(inst, time, props, style, direction)
+	local t = TweenService:Create(inst, TweenInfo.new(time, style or Enum.EasingStyle.Quad, direction or Enum.EasingDirection.Out), props)
+	t:Play()
+	return t
+end
+
+local function camera()
+	return Workspace.CurrentCamera
+end
+
+local function screenScale()
+	local view = camera().ViewportSize
+	return math.clamp(math.min(view.X / 720, view.Y / 600), 0.55, 1)
+end
+
+local function rootPart()
+	local character = player.Character
+	return character and character:FindFirstChild("HumanoidRootPart")
+end
+
+--------------------------------------------------------------------------------
+-- Device-specific text
+--------------------------------------------------------------------------------
+
+local function device()
+	local last = UserInputService:GetLastInputType()
+	if last == Enum.UserInputType.Touch then
+		return "Touch"
+	elseif last.Name:sub(1, 7) == "Gamepad" then
+		return "Gamepad"
+	elseif last == Enum.UserInputType.Keyboard or last.Name:sub(1, 5) == "Mouse" then
+		return "Keyboard"
+	end
+	return (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) and "Touch" or "Keyboard"
+end
+
+local function isPerDevice(value)
+	return typeof(value) == "table" and (value.Keyboard ~= nil or value.Touch ~= nil or value.Gamepad ~= nil)
+end
+
+-- Text falls back to the keyboard version; key hints don't (no "W A S D" on a phone).
+local function pick(value, fallback)
+	if isPerDevice(value) then
+		local own = value[device()]
+		if own == nil and fallback then
+			return value.Keyboard
+		end
+		return own
+	end
+	return value
+end
+
+local function islandList()
+	local islands = table.clone(Config.Islands)
+	table.sort(islands, function(a, b)
+		return (a.Level or 1) < (b.Level or 1)
+	end)
+	local lines = {}
+	for _, island in islands do
+		table.insert(lines, string.format("   •  <b>%s</b>  –  level %d", island.Name, island.Level or 1))
+	end
+	return table.concat(lines, "\n")
+end
+
+local function fill(text)
+	text = tostring(text or "")
+	text = text:gsub("{Tool}", function()
+		return Config.ToolName
+	end)
+	text = text:gsub("{Islands}", islandList)
+	return text
+end
+
+--------------------------------------------------------------------------------
+-- Finding things the steps point at
+--------------------------------------------------------------------------------
+
+local function ours(inst)
+	return inst:IsDescendantOf(gui) or inst:FindFirstAncestor("GuideMarker") ~= nil or inst:FindFirstAncestor("LevelAlerts") ~= nil
+end
+
+-- True when a GUI element is actually showing on screen.
+local function onScreen(element)
+	local node = element
+	while node and node ~= playerGui do
+		if node:IsA("GuiObject") and not node.Visible then
+			return false
+		elseif node:IsA("LayerCollector") and not node.Enabled then
+			return false
+		end
+		node = node.Parent
+	end
+	if node ~= playerGui then
+		return false
+	end
+	local size = element.AbsoluteSize
+	return size.X > 4 and size.Y > 4
+end
+
+local function hasWord(element, words)
+	local name = element.Name:lower()
+	local text = (element:IsA("TextButton") or element:IsA("TextLabel")) and element.Text:lower() or ""
+	for _, word in words do
+		word = word:lower()
+		if name:find(word, 1, true) or text:find(word, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
+-- The smallest visible button whose name or text has one of the words.
+local function findButton(words)
+	local best, bestArea = nil, math.huge
+	for _, element in playerGui:GetDescendants() do
+		if element:IsA("GuiButton") and element:FindFirstAncestorWhichIsA("ScreenGui") and not ours(element) and onScreen(element) then
+			local matched = hasWord(element, words)
+			if not matched then
+				local label = element:FindFirstChildWhichIsA("TextLabel")
+				matched = label ~= nil and hasWord(label, words)
+			end
+			local size = element.AbsoluteSize
+			if matched and size.X * size.Y < bestArea then
+				best, bestArea = element, size.X * size.Y
+			end
+		end
+	end
+	return best
+end
+
+-- Open windows (big visible panels, not buttons) whose name, or whose
+-- ScreenGui's name, has one of the words.
+local function findWindows(words)
+	local function window(element)
+		if not element:IsA("GuiObject") or element:IsA("GuiButton") then
+			return false
+		end
+		local size = element.AbsoluteSize
+		if size.X < 160 or size.Y < 120 then
+			return false
+		end
+		local panel = element.BackgroundTransparency < 0.95
+			or ((element:IsA("ImageLabel") or element:IsA("ImageButton")) and element.Image ~= "" and element.ImageTransparency < 0.95)
+		return panel and onScreen(element)
+	end
+	local found = {}
+	for _, layer in playerGui:GetChildren() do
+		if layer:IsA("ScreenGui") and layer.Enabled and not ours(layer) then
+			local layerMatches = hasWord(layer, words)
+			for _, element in layer:GetDescendants() do
+				if (layerMatches or hasWord(element, words)) and window(element) then
+					found[element] = true
+				end
+			end
+		end
+	end
+	return found
+end
+
+-- Screen rectangle of a GUI element in this overlay's coordinates.
+local function guiRect(element)
+	local position = element.AbsolutePosition
+	local layer = element:FindFirstAncestorWhichIsA("ScreenGui")
+	if layer and not layer.IgnoreGuiInset then
+		position += GuiService:GetGuiInset()
+	end
+	return position, element.AbsoluteSize
+end
+
+local function resolvePath(path)
+	local node = Workspace
+	for _, name in path do
+		node = node:FindFirstChild(name)
+		if not node then
+			return nil
+		end
+	end
+	return node
+end
+
+local function partOf(inst)
+	if inst:IsA("BasePart") then
+		return inst
+	elseif inst:IsA("Model") then
+		return inst.PrimaryPart or inst:FindFirstChild("HumanoidRootPart") or inst:FindFirstChildWhichIsA("BasePart", true)
+	end
+	return inst:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function alive(inst)
+	local humanoid = inst:IsA("Model") and inst:FindFirstChildOfClass("Humanoid")
+	return not humanoid or humanoid.Health > 0
+end
+
+-- The nearest part for a { Tag = ... } or { Path = ... } spec.
+local function findWorld(spec)
+	local candidates = {}
+	if spec.Tag then
+		candidates = CollectionService:GetTagged(spec.Tag)
+	elseif spec.Path then
+		local node = resolvePath(spec.Path)
+		if node then
+			candidates = (node:IsA("Folder") or (node:IsA("Model") and not node:FindFirstChildOfClass("Humanoid"))) and node:GetChildren() or { node }
+		end
+	end
+	local root = rootPart()
+	local best, bestDistance = nil, math.huge
+	for _, inst in candidates do
+		if inst:IsDescendantOf(Workspace) and alive(inst) then
+			local part = partOf(inst)
+			if part then
+				local distance = root and (part.Position - root.Position).Magnitude or 0
+				if distance < bestDistance then
+					best, bestDistance = part, distance
+				end
+			end
+		end
+	end
+	return best
+end
+
+local function hasTool(name)
+	for _, container in { player.Character, player:FindFirstChildOfClass("Backpack") } do
+		if container then
+			for _, tool in container:GetChildren() do
+				if tool:IsA("Tool") and (not name or tool.Name == name) then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
+-- Steps with OnlyIf are left out when the thing they explain isn't in this game.
+local function available(step)
+	local only = step.OnlyIf
+	if not only then
+		return true
+	elseif only.Tool then
+		return hasTool(only.Tool)
+	elseif only.Tag then
+		return #CollectionService:GetTagged(only.Tag) > 0
+	elseif only.Gui then
+		return findButton(only.Gui) ~= nil or next(findWindows(only.Gui)) ~= nil
+	elseif only.Path then
+		return resolvePath(only.Path) ~= nil
+	end
+	return true
+end
+
+--------------------------------------------------------------------------------
+-- Overlay pieces: dimmed screen, gold ring, arrows
+--------------------------------------------------------------------------------
+
+local dims = {}
+for i = 1, 4 do
+	dims[i] = make("Frame", {
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 0.45,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 1,
+	}, gui)
+end
+
+local ring = make("Frame", { BackgroundTransparency = 1, Visible = false, ZIndex = 2 }, gui)
+local ringStroke = make("UIStroke", { Color = C.Gold, Thickness = 3 }, ring)
+Style.corner(ring, UDim.new(0, 10))
+
+local function rotate(v, degrees)
+	local r = math.rad(degrees)
+	local cos, sin = math.cos(r), math.sin(r)
+	return Vector2.new(v.X * cos - v.Y * sin, v.X * sin + v.Y * cos)
+end
+
+-- A double chevron ">>" made of four bars, so it can point any way.
+local function newChevron(parent, z)
+	local bars = {}
+	for i = 1, 4 do
+		bars[i] = make("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Size = UDim2.fromOffset(24, 8),
+			BackgroundColor3 = C.Gold,
+			BackgroundTransparency = i > 2 and 0.4 or 0,
+			BorderSizePixel = 0,
+			Visible = false,
+			ZIndex = z,
+		}, parent)
+		Style.corner(bars[i], UDim.new(0.5, 0))
+		make("UIStroke", { Color = C.Outline, Thickness = 1.5, Transparency = 0.35 }, bars[i])
+	end
+	return bars
+end
+
+-- angle: 0 points right, 90 points down.
+local function placeChevron(bars, tip, angle)
+	local a = math.rad(angle)
+	local dir = Vector2.new(math.cos(a), math.sin(a))
+	for k = 0, 1 do
+		local point = tip - dir * (k * 14)
+		for s = 0, 1 do
+			local back = rotate(-dir, s == 0 and 45 or -45)
+			local center = point + back * 9
+			local bar = bars[k * 2 + s + 1]
+			bar.Position = UDim2.fromOffset(center.X, center.Y)
+			bar.Rotation = math.deg(math.atan2(back.Y, back.X))
+			bar.Visible = true
+		end
+	end
+end
+
+local function hideChevron(bars)
+	for _, bar in bars do
+		bar.Visible = false
+	end
+end
+
+local guiArrow = newChevron(gui, 3)
+local edgeArrow = newChevron(gui, 3)
+local edgeLabel = Style.label({
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Size = UDim2.fromOffset(160, 40),
+	FontFace = Style.FontTitle,
+	TextSize = 15,
+	TextStrokeTransparency = 0.2,
+	Visible = false,
+	ZIndex = 3,
+}, gui)
+
+--------------------------------------------------------------------------------
+-- The card
+--------------------------------------------------------------------------------
+
+local card = make("CanvasGroup", {
+	Name = "Card",
+	Size = UDim2.fromOffset(CARD_WIDTH, 0),
+	AutomaticSize = Enum.AutomaticSize.Y,
+	BorderSizePixel = 0,
+	Visible = false,
+	ZIndex = 10,
+}, gui)
+Style.gradient(card, C.WindowTop, C.WindowBottom)
+Style.corner(card, UDim.new(0, 10))
+local cardScale = make("UIScale", {}, card)
+make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder }, card)
+
+-- The card's border is a frame behind it, since a CanvasGroup would clip a stroke.
+local cardBorder = make("Frame", {
+	BackgroundTransparency = 1,
+	Visible = false,
+	ZIndex = 9,
+}, gui)
+make("UIStroke", { Color = C.WindowBorder, Thickness = 3 }, cardBorder)
+Style.corner(cardBorder, UDim.new(0, 10))
+
+local header = make("Frame", { Size = UDim2.new(1, 0, 0, 42), BorderSizePixel = 0, LayoutOrder = 1 }, card)
+Style.gradient(header, C.HeaderTop, C.HeaderBottom)
+Style.label({
+	Text = "📘  TUTORIAL",
+	FontFace = Style.FontTitle,
+	TextSize = 17,
+	TextStrokeTransparency = 0.4,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Position = UDim2.fromOffset(16, 0),
+	Size = UDim2.new(0.5, 0, 1, 0),
+}, header)
+local stepLabel = Style.label({
+	FontFace = Style.FontBold,
+	TextSize = 14,
+	TextColor3 = Color3.fromRGB(255, 214, 214),
+	TextXAlignment = Enum.TextXAlignment.Right,
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -52, 0, 0),
+	Size = UDim2.new(0.5, -60, 1, 0),
+}, header)
+local closeButton = make("TextButton", {
+	Text = "X",
+	FontFace = Style.FontTitle,
+	TextSize = 22,
+	TextColor3 = C.Text,
+	TextStrokeTransparency = 0.3,
+	BackgroundTransparency = 1,
+	AnchorPoint = Vector2.new(1, 0.5),
+	Position = UDim2.new(1, -6, 0.5, 0),
+	Size = UDim2.fromOffset(40, 40),
+}, header)
+
+local helpButton = make("TextButton", {
+	Name = "TutorialHelp",
+	Text = "?",
+	FontFace = Style.FontTitle,
+	TextSize = 28,
+	TextColor3 = C.DarkText,
+	AnchorPoint = Vector2.new(0, 0.5),
+	Position = settings.HelpButtonPosition or UDim2.new(0, 14, 0.5, 0),
+	Size = UDim2.fromOffset(48, 48),
+	Visible = false,
+	ZIndex = 4,
+}, gui)
+Style.gradient(helpButton, C.GoldTop, C.GoldBottom)
+Style.border(helpButton, C.GoldBorder, 3)
+Style.corner(helpButton, UDim.new(0.5, 0))
+Style.label({
+	Text = "HELP",
+	FontFace = Style.FontTitle,
+	TextSize = 11,
+	TextStrokeTransparency = 0.3,
+	Position = UDim2.new(0, -10, 1, 4),
+	Size = UDim2.new(1, 20, 0, 14),
+	ZIndex = 4,
+}, helpButton)
+
+--------------------------------------------------------------------------------
+-- Tutorial state
+--------------------------------------------------------------------------------
+
+local open = false
+local active = {} -- the steps shown this time (OnlyIf ones left out)
+local current = 0
+local stepToken = 0 -- changes every step, so delayed callbacks from old steps do nothing
+local stepCleanup = {}
+local goal = { progress = 0, done = false, status = "" }
+local highlight = nil -- what the open step points at
+local dimOn = false
+local body = nil
+local ui = {}
+
+local showStep, finish, renderCard
+
+local function cleanStep()
+	for _, item in stepCleanup do
+		if typeof(item) == "RBXScriptConnection" then
+			item:Disconnect()
+		elseif typeof(item) == "Instance" then
+			item:Destroy()
+		elseif type(item) == "function" then
+			item()
+		end
+	end
+	table.clear(stepCleanup)
+	highlight = nil
+end
+
+local function placeCard(where)
+	if where == "top" then
+		card.AnchorPoint = Vector2.new(0.5, 0)
+		card.Position = UDim2.new(0.5, 0, 0, 64)
+	elseif where == "center" then
+		card.AnchorPoint = Vector2.new(0.5, 0.5)
+		card.Position = UDim2.fromScale(0.5, 0.5)
+	else
+		card.AnchorPoint = Vector2.new(0.5, 1)
+		card.Position = UDim2.new(0.5, 0, 1, -96) -- above the hotbar
+	end
+	cardScale.Scale = screenScale()
+end
+
+--------------------------------------------------------------------------------
+-- Goal box and buttons
+--------------------------------------------------------------------------------
+
+local function updateGoalUI()
+	if not ui.fill or not ui.fill.Parent then
+		return
+	end
+	local done = goal.done
+	ui.fill.Size = UDim2.fromScale(goal.progress, 1)
+	ui.fill.BackgroundColor3 = done and C.Green or C.Gold
+	ui.status.Text = done and "DONE!" or goal.status
+	ui.status.TextColor3 = done and C.Green or C.SubText
+	ui.checkMark.Visible = done
+	ui.check.BackgroundColor3 = done and C.Green or C.Track
+	ui.goalStroke.Color = done and C.Green or C.SlotBorder
+end
+
+local function updateNext()
+	if not ui.next or not ui.next.Parent then
+		return
+	end
+	local step = active[current]
+	local last = current == #active
+	local ready = step.Goal == nil or goal.done
+	ui.next.Text = last and "Finish  ✓" or (ready and "Next  ›" or "Skip step  ›")
+	Style.setGold(ui.next, ready or last)
+	if ready and not ui.pulsed and step.Goal then
+		ui.pulsed = true
+		local scale = make("UIScale", {}, ui.next)
+		tween(scale, 0.15, { Scale = 1.12 }).Completed:Connect(function()
+			tween(scale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+		end)
+	end
+end
+
+local function completeGoal()
+	if goal.done then
+		return
+	end
+	goal.done = true
+	goal.progress = 1
+	updateGoalUI()
+	updateNext()
+	Style.playSound(Config.Sounds.StepDone, Config.Volume)
+	if ui.check and ui.check.Parent then
+		local pop = make("UIScale", { Scale = 1.5 }, ui.check)
+		tween(pop, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+	end
+	local token = stepToken
+	task.delay(settings.AutoAdvanceDelay, function()
+		if open and token == stepToken and current < #active and not ui.confirming then
+			showStep(current + 1)
+		end
+	end)
+end
+
+local function setProgress(progress, status)
+	if goal.done then
+		return
+	end
+	goal.progress = math.clamp(progress, 0, 1)
+	goal.status = status or ""
+	if goal.progress >= 1 then
+		completeGoal()
+	else
+		updateGoalUI()
+	end
+end
+
+local GOAL_TEXT = {
+	Move = function(g)
+		return string.format("Walk %d studs", g.Distance or 30)
+	end,
+	Jump = function()
+		return "Jump once"
+	end,
+	Look = function()
+		return "Turn the camera around"
+	end,
+	Equip = function(g)
+		return g.Tool and ("Take out your " .. g.Tool) or "Take out a tool"
+	end,
+	Open = function()
+		return "Open the window"
+	end,
+	Reach = function()
+		return "Follow the arrow"
+	end,
+	Level = function(g)
+		return string.format("Reach level %d", g.Level or 2)
+	end,
+}
+
+local function goalText(g)
+	if g.Text then
+		return fill(g.Text)
+	end
+	local text = GOAL_TEXT[g.Type]
+	return text and text(g) or "Try it out"
+end
+
+--------------------------------------------------------------------------------
+-- Drawing a step's card
+--------------------------------------------------------------------------------
+
+local function keycap(text, parent, order)
+	local cap = Style.label({
+		Text = text,
+		FontFace = Style.FontTitle,
+		TextSize = 14,
+		TextWrapped = false,
+		RichText = false,
+		Size = UDim2.fromOffset(0, 30),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 0,
+		LayoutOrder = order,
+	}, parent)
+	Style.gradient(cap, C.ButtonTop, C.ButtonBottom)
+	Style.border(cap, Color3.fromRGB(110, 112, 122), 2)
+	Style.corner(cap, UDim.new(0, 6))
+	make("UIPadding", { PaddingLeft = UDim.new(0, 11), PaddingRight = UDim.new(0, 11) }, cap)
+	return cap
+end
+
+local function newBody()
+	if body then
+		body:Destroy()
+	end
+	table.clear(ui)
+	body = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+	}, card)
+	make("UIPadding", {
+		PaddingTop = UDim.new(0, 12),
+		PaddingBottom = UDim.new(0, 16),
+		PaddingLeft = UDim.new(0, 16),
+		PaddingRight = UDim.new(0, 16),
+	}, body)
+	make("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder }, body)
+	return body
+end
+
+local function renderConfirm()
+	newBody()
+	ui.confirming = true
+	stepLabel.Text = ""
+	Style.label({
+		Text = "Skip the tutorial?",
+		FontFace = Style.FontTitle,
+		TextSize = 24,
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 1,
+	}, body)
+	Style.label({
+		Text = "You can watch it again anytime with the round <b>?</b> button on the left of the screen.",
+		TextColor3 = C.SubText,
+		TextSize = 17,
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 2,
+	}, body)
+	local row = make("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, LayoutOrder = 3 }, body)
+	local keep = Style.button("Keep going", true, { Size = UDim2.new(0.5, -6, 1, 0) }, row)
+	local skip = Style.button("Skip tutorial", false, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0.5, -6, 1, 0) }, row)
+	keep.Activated:Connect(function()
+		renderCard()
+	end)
+	skip.Activated:Connect(function()
+		finish(true)
+	end)
+end
+
+function renderCard()
+	local step = active[current]
+	if not step then
+		return
+	end
+	newBody()
+	stepLabel.Text = string.format("STEP %d OF %d", current, #active)
+
+	-- Progress bar: one segment per step.
+	local count = #active
+	local segments = make("Frame", { Size = UDim2.new(1, 0, 0, 6), BackgroundTransparency = 1, LayoutOrder = 1 }, body)
+	make("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		Padding = UDim.new(0, 4),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, segments)
+	for i = 1, count do
+		local segment = make("Frame", {
+			Size = UDim2.new(1 / count, -4 * (count - 1) / count, 1, 0),
+			BackgroundColor3 = i < current and C.Gold or (i == current and C.Text or C.Track),
+			BorderSizePixel = 0,
+			LayoutOrder = i,
+		}, segments)
+		Style.corner(segment, UDim.new(0.5, 0))
+	end
+
+	-- Picture on the left, explanation on the right.
+	local row = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+	}, body)
+	local iconSlot = make("Frame", { Size = UDim2.fromOffset(84, 84), BackgroundColor3 = C.Slot, BorderSizePixel = 0 }, row)
+	Style.border(iconSlot, C.Gold, 2)
+	Style.corner(iconSlot)
+	Style.icon(step.Icon or "❔", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.7, 0.7),
+	}, iconSlot)
+	local iconScale = make("UIScale", { Scale = 0.6 }, iconSlot)
+	tween(iconScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
+
+	local column = make("Frame", {
+		Position = UDim2.fromOffset(100, 0),
+		Size = UDim2.new(1, -100, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+	}, row)
+	make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, column)
+	Style.label({
+		Text = fill(step.Title),
+		FontFace = Style.FontTitle,
+		TextSize = 24,
+		TextStrokeTransparency = 0.6,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 1,
+	}, column)
+	Style.label({
+		Text = fill(pick(step.Body, true)),
+		TextColor3 = C.SubText,
+		TextSize = 17,
+		LineHeight = 1.1,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 2,
+	}, column)
+
+	local keys = pick(step.Keys, false)
+	if keys and #keys > 0 then
+		local keyRow = make("Frame", { Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1, LayoutOrder = 3 }, column)
+		make("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			Padding = UDim.new(0, 6),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}, keyRow)
+		for i, key in keys do
+			keycap(key, keyRow, i)
+		end
+	end
+
+	local tip = pick(step.Tip, true)
+	if tip and tip ~= "" then
+		Style.label({
+			Text = "💡  " .. fill(tip),
+			FontFace = Style.FontBold,
+			TextColor3 = C.Gold,
+			TextSize = 15,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			LayoutOrder = 4,
+		}, column)
+	end
+
+	-- Goal box: what to do, a tick box and a progress bar.
+	if step.Goal then
+		local box = make("Frame", { Size = UDim2.new(1, 0, 0, 64), BackgroundColor3 = C.Slot, BorderSizePixel = 0, LayoutOrder = 3 }, body)
+		ui.goalStroke = Style.border(box, C.SlotBorder, 2)
+		Style.corner(box)
+		ui.check = make("Frame", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 14, 0.5, 0),
+			Size = UDim2.fromOffset(30, 30),
+			BackgroundColor3 = C.Track,
+			BorderSizePixel = 0,
+		}, box)
+		Style.border(ui.check, C.Gold, 2)
+		Style.corner(ui.check, UDim.new(0, 6))
+		ui.checkMark = Style.label({
+			Text = "✓",
+			FontFace = Style.FontTitle,
+			TextSize = 22,
+			RichText = false,
+			Size = UDim2.fromScale(1, 1),
+			Visible = false,
+		}, ui.check)
+		Style.label({
+			Text = "GOAL",
+			FontFace = Style.FontTitle,
+			TextSize = 12,
+			TextColor3 = C.Gold,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Position = UDim2.fromOffset(58, 8),
+			Size = UDim2.fromOffset(60, 14),
+		}, box)
+		Style.label({
+			Text = goalText(step.Goal),
+			FontFace = Style.FontBold,
+			TextSize = 16,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			TextWrapped = false,
+			Position = UDim2.fromOffset(58, 22),
+			Size = UDim2.new(1, -170, 0, 20),
+		}, box)
+		ui.status = Style.label({
+			FontFace = Style.FontTitle,
+			TextSize = 14,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -14, 0, 22),
+			Size = UDim2.fromOffset(110, 20),
+		}, box)
+		local track = make("Frame", {
+			Position = UDim2.fromOffset(58, 48),
+			Size = UDim2.new(1, -72, 0, 6),
+			BackgroundColor3 = C.Track,
+			BorderSizePixel = 0,
+		}, box)
+		Style.corner(track, UDim.new(0.5, 0))
+		ui.fill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = C.Gold, BorderSizePixel = 0 }, track)
+		Style.corner(ui.fill, UDim.new(0.5, 0))
+		updateGoalUI()
+	end
+
+	-- Back / Skip tutorial / Next.
+	local footer = make("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, LayoutOrder = 4 }, body)
+	local back = Style.button("‹  Back", false, { Size = UDim2.fromOffset(112, 44), Visible = current > 1 }, footer)
+	local skip = make("TextButton", {
+		Text = "Skip tutorial",
+		FontFace = Style.FontBold,
+		TextSize = 14,
+		TextColor3 = C.SubText,
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(130, 34),
+	}, footer)
+	ui.next = Style.button("Next  ›", true, {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		Size = UDim2.fromOffset(176, 44),
+	}, footer)
+	back.Activated:Connect(function()
+		if current > 1 then
+			showStep(current - 1)
+		end
+	end)
+	skip.Activated:Connect(renderConfirm)
+	ui.next.Activated:Connect(function()
+		if current >= #active then
+			finish(false)
+		else
+			showStep(current + 1)
+		end
+	end)
+	updateNext()
+
+	-- On a gamepad, select Next so A presses it (not on goal steps, where A means jump).
+	if device() == "Gamepad" and not step.Goal then
+		GuiService.SelectedObject = ui.next
+	elseif GuiService.SelectedObject and GuiService.SelectedObject:IsDescendantOf(gui) then
+		GuiService.SelectedObject = nil
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Goals
+--------------------------------------------------------------------------------
+
+local function track(item)
+	table.insert(stepCleanup, item)
+end
+
+local GOALS = {}
+
+function GOALS.Move(g)
+	local needed = g.Distance or 30
+	local walked = 0
+	local last = nil
+	setProgress(0, string.format("0 / %d", needed))
+	track(RunService.Heartbeat:Connect(function()
+		local root = rootPart()
+		if not root then
+			last = nil
+			return
+		end
+		local position = root.Position * Vector3.new(1, 0, 1)
+		if last then
+			local step = (position - last).Magnitude
+			if step < 10 then -- ignore teleports and respawns
+				walked += step
+			end
+		end
+		last = position
+		setProgress(walked / needed, string.format("%d / %d", math.floor(walked), needed))
+	end))
+end
+
+function GOALS.Jump()
+	setProgress(0, "0 / 1")
+	track(UserInputService.JumpRequest:Connect(function()
+		setProgress(1, "1 / 1")
+	end))
+end
+
+function GOALS.Look(g)
+	local needed = g.Degrees or 120
+	local turned = 0
+	local function yaw()
+		local look = camera().CFrame.LookVector
+		return math.deg(math.atan2(look.X, look.Z))
+	end
+	local last = yaw()
+	setProgress(0, string.format("0° / %d°", needed))
+	track(RunService.RenderStepped:Connect(function()
+		local now = yaw()
+		local delta = (now - last + 180) % 360 - 180
+		last = now
+		turned += math.abs(delta)
+		setProgress(turned / needed, string.format("%d° / %d°", math.floor(turned), needed))
+	end))
+end
+
+function GOALS.Equip(g)
+	setProgress(0, "")
+	track(RunService.Heartbeat:Connect(function()
+		local character = player.Character
+		local tool = character and character:FindFirstChildOfClass("Tool")
+		if tool and (not g.Tool or tool.Name == g.Tool) then
+			setProgress(1, "")
+		end
+	end))
+end
+
+function GOALS.Open(g)
+	setProgress(0, "")
+	-- Only a window that opens during this step counts (not HUD panels that are always there).
+	local words = g.Gui or {}
+	local alreadyOpen = findWindows(words)
+	local nextCheck = 0
+	track(RunService.Heartbeat:Connect(function()
+		if os.clock() < nextCheck then
+			return
+		end
+		nextCheck = os.clock() + 0.25
+		local openNow = findWindows(words)
+		for element in openNow do
+			if not alreadyOpen[element] then
+				setProgress(1, "")
+				return
+			end
+		end
+		alreadyOpen = openNow -- something closed: opening it again counts
+	end))
+end
+
+function GOALS.Reach(g)
+	local radius = g.Radius or 15
+	local startDistance = nil
+	local target, nextFind = nil, 0
+	setProgress(0, "")
+	track(RunService.Heartbeat:Connect(function()
+		if os.clock() >= nextFind then
+			nextFind = os.clock() + 0.5
+			target = findWorld(g)
+		end
+		local root = rootPart()
+		if not target or not root then
+			return
+		end
+		local distance = (target.Position - root.Position).Magnitude
+		startDistance = startDistance or math.max(distance, radius + 1)
+		local progress = distance <= radius and 1 or (1 - (distance - radius) / (startDistance - radius))
+		setProgress(math.max(progress, goal.progress), string.format("%d studs away", math.floor(math.max(distance - radius, 0))))
+	end))
+end
+
+function GOALS.Level(g)
+	local needed = g.Level or 2
+	track(RunService.Heartbeat:Connect(function()
+		local level = getLevel() or 0
+		setProgress(level / needed, string.format("Level %d / %d", level, needed))
+	end))
+end
+
+--------------------------------------------------------------------------------
+-- Highlights
+--------------------------------------------------------------------------------
+
+local function newMarker(part, label)
+	local marker = make("BillboardGui", {
+		Name = "GuideMarker",
+		Adornee = part,
+		AlwaysOnTop = true,
+		LightInfluence = 0,
+		Size = UDim2.fromOffset(160, 110),
+		StudsOffsetWorldSpace = Vector3.new(0, part.Size.Y / 2 + 2, 0),
+		ResetOnSpawn = false,
+	}, playerGui)
+	local bars = newChevron(marker, 1)
+	local title = Style.label({
+		Text = label,
+		FontFace = Style.FontTitle,
+		TextSize = 18,
+		TextStrokeTransparency = 0.2,
+		Size = UDim2.new(1, 0, 0, 20),
+	}, marker)
+	local distance = Style.label({
+		FontFace = Style.FontBold,
+		TextSize = 14,
+		TextColor3 = C.Gold,
+		TextStrokeTransparency = 0.2,
+		Position = UDim2.fromOffset(0, 20),
+		Size = UDim2.new(1, 0, 0, 18),
+	}, marker)
+	return { gui = marker, bars = bars, title = title, distance = distance }
+end
+
+local function startWorldHighlight(spec)
+	local h = { kind = "world", spec = spec, part = nil, nextFind = 0 }
+	local a0 = make("Attachment", { Name = "GuideTrailStart" })
+	local a1 = make("Attachment", { Name = "GuideTrailEnd" })
+	local beam = make("Beam", {
+		Attachment0 = a0,
+		Attachment1 = a1,
+		Color = ColorSequence.new(C.Gold),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.9),
+			NumberSequenceKeypoint.new(0.2, 0.35),
+			NumberSequenceKeypoint.new(1, 0.2),
+		}),
+		LightEmission = 1,
+		FaceCamera = true,
+		Width0 = 0.35,
+		Width1 = 0.35,
+		Segments = 1,
+	})
+	h.a0, h.a1, h.beam = a0, a1, beam
+	track(a0)
+	track(a1)
+	track(beam)
+	track(function()
+		if h.marker then
+			h.marker.gui:Destroy()
+		end
+	end)
+	highlight = h
+end
+
+local function updateWorld(h, now)
+	if now >= h.nextFind then
+		h.nextFind = now + 1
+		local part = findWorld(h.spec)
+		if part ~= h.part then
+			h.part = part
+			if h.marker then
+				h.marker.gui:Destroy()
+				h.marker = nil
+			end
+			if part then
+				local model = part:FindFirstAncestorOfClass("Model")
+				local name = h.spec.Label or (model and model ~= Workspace and model.Name) or part.Name
+				h.marker = newMarker(part, name)
+				h.a1.Parent = part
+			else
+				h.a1.Parent = nil
+			end
+		end
+	end
+	local part, root = h.part, rootPart()
+	if not part or not part:IsDescendantOf(Workspace) or not root then
+		h.beam.Parent = nil
+		hideChevron(edgeArrow)
+		edgeLabel.Visible = false
+		return
+	end
+	-- Gold trail from the player to the target.
+	if h.a0.Parent ~= root then
+		h.a0.Parent = root
+	end
+	h.beam.Parent = root
+
+	local distance = (part.Position - root.Position).Magnitude
+	local bounce = math.abs(math.sin(now * 4)) * 10
+	placeChevron(h.marker.bars, Vector2.new(80, 80 + bounce), 90)
+	h.marker.distance.Text = string.format("%d studs", math.floor(distance))
+
+	-- When it's off screen, an arrow on the screen edge shows which way to turn.
+	local view = camera().ViewportSize
+	local point, visible = camera():WorldToViewportPoint(part.Position)
+	local margin = 60
+	if visible and point.X > margin and point.X < view.X - margin and point.Y > margin and point.Y < view.Y - margin then
+		hideChevron(edgeArrow)
+		edgeLabel.Visible = false
+		return
+	end
+	local center = view / 2
+	local dir = Vector2.new(point.X, point.Y) - center
+	if point.Z < 0 then
+		dir = -dir
+	end
+	if dir.Magnitude < 1 then
+		dir = Vector2.new(0, 1)
+	end
+	local half = center - Vector2.new(margin, margin)
+	local scale = math.min(half.X / math.max(math.abs(dir.X), 1e-3), half.Y / math.max(math.abs(dir.Y), 1e-3))
+	local edge = center + dir * scale
+	placeChevron(edgeArrow, edge + dir.Unit * (bounce * 0.6), math.deg(math.atan2(dir.Y, dir.X)))
+	local labelAt = edge - dir.Unit * 60
+	edgeLabel.Position = UDim2.fromOffset(labelAt.X, labelAt.Y)
+	edgeLabel.Text = string.format("%s\n<font color=\"#ffde28\">%d studs</font>", h.marker.title.Text, math.floor(distance))
+	edgeLabel.Visible = true
+end
+
+local function setDim(rectPos, rectSize)
+	if not dimOn then
+		for _, d in dims do
+			d.Visible = false
+		end
+		return
+	end
+	local view = camera().ViewportSize
+	if not rectPos then
+		dims[1].Position = UDim2.fromOffset(0, 0)
+		dims[1].Size = UDim2.fromOffset(view.X, view.Y)
+		dims[1].Visible = true
+		for i = 2, 4 do
+			dims[i].Visible = false
+		end
+		return
+	end
+	local top = rectPos.Y - SPOT_PAD
+	local bottom = rectPos.Y + rectSize.Y + SPOT_PAD
+	local left = rectPos.X - SPOT_PAD
+	local right = rectPos.X + rectSize.X + SPOT_PAD
+	local boxes = {
+		{ 0, 0, view.X, top },
+		{ 0, bottom, view.X, view.Y - bottom },
+		{ 0, top, left, bottom - top },
+		{ right, top, view.X - right, bottom - top },
+	}
+	for i, b in boxes do
+		dims[i].Position = UDim2.fromOffset(b[1], b[2])
+		dims[i].Size = UDim2.fromOffset(math.max(b[3], 0), math.max(b[4], 0))
+		dims[i].Visible = true
+	end
+end
+
+local function updateOverlay()
+	local now = os.clock()
+	local h = highlight
+	local rectPos, rectSize = nil, nil
+	if h and h.kind == "gui" then
+		if now >= h.nextFind then
+			h.nextFind = now + 0.5
+			h.target = findButton(h.words)
+		end
+		if h.target and onScreen(h.target) then
+			rectPos, rectSize = guiRect(h.target)
+		end
+	end
+	setDim(rectPos, rectSize)
+
+	if rectPos then
+		local pulse = 2 + math.sin(now * 5) * 3
+		ring.Position = UDim2.fromOffset(rectPos.X - SPOT_PAD - pulse, rectPos.Y - SPOT_PAD - pulse)
+		ring.Size = UDim2.fromOffset(rectSize.X + (SPOT_PAD + pulse) * 2, rectSize.Y + (SPOT_PAD + pulse) * 2)
+		ringStroke.Transparency = 0.15 + (math.sin(now * 5) + 1) * 0.15
+		ring.Visible = true
+		local mid = rectPos + rectSize / 2
+		local bounce = math.abs(math.sin(now * 4)) * 10
+		if mid.Y < camera().ViewportSize.Y * 0.5 then
+			placeChevron(guiArrow, Vector2.new(mid.X, rectPos.Y + rectSize.Y + SPOT_PAD + 14 + bounce), -90)
+		else
+			placeChevron(guiArrow, Vector2.new(mid.X, rectPos.Y - SPOT_PAD - 14 - bounce), 90)
+		end
+	else
+		ring.Visible = false
+		hideChevron(guiArrow)
+	end
+
+	if h and h.kind == "world" then
+		updateWorld(h, now)
+	else
+		hideChevron(edgeArrow)
+		edgeLabel.Visible = false
+	end
+
+	-- Keep the card's red border lined up with the card.
+	cardBorder.Visible = card.Visible
+	if card.Visible then
+		local s = cardScale.Scale
+		local size = card.AbsoluteSize
+		cardBorder.Position = UDim2.fromOffset(card.AbsolutePosition.X, card.AbsolutePosition.Y)
+		cardBorder.Size = UDim2.fromOffset(size.X, size.Y)
+		cardBorder:FindFirstChildOfClass("UIStroke").Thickness = 3 * s
+		cardBorder:FindFirstChildOfClass("UIStroke").Transparency = card.GroupTransparency
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Moving between steps
+--------------------------------------------------------------------------------
+
+local function cardSpot(step)
+	local h = step.Highlight
+	if h and h.Gui then
+		local button = findButton(h.Gui)
+		if button then
+			local pos, size = guiRect(button)
+			return (pos.Y + size.Y / 2 > camera().ViewportSize.Y * 0.5) and "top" or "bottom"
+		end
+	end
+	if dimOn and not step.Goal and not (h and (h.Tag or h.Path)) then
+		return "center"
+	end
+	if device() == "Touch" then
+		return "top" -- keep the joystick and jump button free
+	end
+	return "bottom"
+end
+
+function showStep(index)
+	cleanStep()
+	stepToken += 1
+	current = index
+	local step = active[index]
+	goal = { progress = 0, done = false, status = "" }
+
+	local h = step.Highlight
+	local gameplay = step.Goal and step.Goal.Type ~= "Open"
+	if step.Dim ~= nil then
+		dimOn = step.Dim
+	else
+		dimOn = (h ~= nil and h.Gui ~= nil) or (not gameplay and not (h and (h.Tag or h.Path)))
+	end
+
+	if h and h.Gui then
+		highlight = { kind = "gui", words = h.Gui, nextFind = 0 }
+	elseif h and (h.Tag or h.Path) then
+		startWorldHighlight(h)
+	end
+
+	placeCard(cardSpot(step))
+	renderCard()
+	if step.Goal then
+		local start = GOALS[step.Goal.Type]
+		if start then
+			start(step.Goal)
+		else
+			warn("[TutorialAndAlerts] unknown goal type: " .. tostring(step.Goal.Type))
+		end
+	end
+
+	-- Slide the new card in.
+	local target = card.Position
+	card.Position = target + UDim2.fromOffset(0, 14)
+	card.GroupTransparency = 0.6
+	tween(card, 0.25, { Position = target, GroupTransparency = 0 })
+end
+
+local hidden = {} -- old tutorial screens we've turned off
+
+local function hideOldTutorial(screenGui)
+	if not settings.HideOldTutorial or hidden[screenGui] or screenGui == gui or not screenGui:IsA("LayerCollector") then
+		return
+	end
+	for _, word in settings.OldTutorialNames do
+		if screenGui.Name:lower():find(word:lower(), 1, true) then
+			hidden[screenGui] = true
+			screenGui.Enabled = false
+			screenGui:GetPropertyChangedSignal("Enabled"):Connect(function()
+				if screenGui.Enabled then
+					screenGui.Enabled = false
+				end
+			end)
+			return
+		end
+	end
+end
+
+local overlayConnection = nil
+
+local function start()
+	active = {}
+	for _, step in Config.Steps do
+		if available(step) then
+			table.insert(active, step)
+		end
+	end
+	if #active == 0 then
+		return
+	end
+	open = true
+	helpButton.Visible = false
+	card.Visible = true
+	if not overlayConnection then
+		overlayConnection = RunService.RenderStepped:Connect(updateOverlay)
+	end
+	showStep(1)
+end
+
+function finish(skipped)
+	if not open then
+		return
+	end
+	open = false
+	stepToken += 1
+	cleanStep()
+	dimOn = false
+	tween(card, 0.25, { GroupTransparency = 1 }).Completed:Connect(function()
+		if not open then
+			card.Visible = false
+			if overlayConnection then
+				overlayConnection:Disconnect()
+				overlayConnection = nil
+			end
+			updateOverlay()
+			if body then
+				body:Destroy()
+				body = nil
+			end
+		end
+	end)
+	if GuiService.SelectedObject and GuiService.SelectedObject:IsDescendantOf(gui) then
+		GuiService.SelectedObject = nil
+	end
+	helpButton.Visible = settings.HelpButton
+	if settings.HelpButton then
+		local pop = make("UIScale", { Scale = 1.6 }, helpButton)
+		tween(pop, 0.5, { Scale = 1 }, Enum.EasingStyle.Back).Completed:Connect(function()
+			pop:Destroy()
+		end)
+	end
+	Notify.Remote:FireServer("TutorialDone")
+	Notify.Toast(
+		player,
+		skipped and "Tutorial skipped" or "Tutorial complete!",
+		"Press the ? button on the left to watch it again."
+	)
+end
+
+closeButton.Activated:Connect(function()
+	if open then
+		renderConfirm()
+	end
+end)
+
+helpButton.Activated:Connect(function()
+	if not open then
+		start()
+	end
+end)
+
+-- Redraw the card when the player switches between keyboard, touch and gamepad.
+local lastDevice = device()
+UserInputService.LastInputTypeChanged:Connect(function()
+	local now = device()
+	if now ~= lastDevice then
+		lastDevice = now
+		if open and ui.next and ui.next.Parent then
+			renderCard()
+		end
+	end
+end)
+
+local function onRemote(kind)
+	if kind == "ShowTutorial" and not open then
+		start()
+	end
+end
+Notify.Remote.OnClientEvent:Connect(onRemote)
+Notify.LocalEvent.Event:Connect(onRemote)
+
+playerGui.ChildAdded:Connect(hideOldTutorial)
+for _, screenGui in playerGui:GetChildren() do
+	hideOldTutorial(screenGui)
+end
+
+-- Open on the first visit, once the server says whether it's been done before.
+task.spawn(function()
+	if not player.Character then
+		player.CharacterAdded:Wait()
+	end
+	task.wait(settings.StartDelay)
+	local waited = 0
+	while player:GetAttribute("TutorialDone") == nil and waited < 10 do
+		waited += task.wait(0.2)
+	end
+	helpButton.Visible = settings.HelpButton
+	if settings.ShowOnFirstJoin and player:GetAttribute("TutorialDone") ~= true and not open then
+		start()
+	end
+end)
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX7">
+			<Properties>
+				<string name="Name">Alerts</string>
+				<token name="RunContext">2</token>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Notifications: a big "LEVEL UP!" banner each time the player levels up, an
+	"ISLAND UNLOCKED" banner for each new island, and small pop-ups in the
+	top-right corner. Banners queue up, so several at once show one after another.
+	This is a Script with RunContext = Client, so it runs from ReplicatedStorage.
+
+	Levels and islands are detected automatically (see Config). Your own
+	scripts can also show them; see the Notify module.
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local folder = script.Parent
+local Config = require(folder:WaitForChild("Config"))
+local Style = require(folder:WaitForChild("Style"))
+local PlayerStats = require(folder:WaitForChild("PlayerStats"))
+local Notify = require(folder:WaitForChild("Notify"))
+
+local player = Players.LocalPlayer
+local C = Style.Colors
+local make = Style.make
+
+local gui = make("ScreenGui", {
+	Name = "LevelAlerts",
+	ResetOnSpawn = false,
+	IgnoreGuiInset = true,
+	DisplayOrder = 20,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+}, player:WaitForChild("PlayerGui"))
+
+local function tween(inst, time, props, style, direction)
+	local t = TweenService:Create(inst, TweenInfo.new(time, style or Enum.EasingStyle.Quad, direction or Enum.EasingDirection.Out), props)
+	t:Play()
+	return t
+end
+
+-- Banners are sized for a PC screen; shrink them to fit phones.
+local function screenScale()
+	local view = Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+	return math.clamp(math.min(view.X / 900, view.Y / 640), 0.55, 1)
+end
+
+--------------------------------------------------------------------------------
+-- Confetti
+--------------------------------------------------------------------------------
+
+local CONFETTI_COLORS = {
+	C.Gold, C.Close, Color3.fromRGB(80, 170, 255), C.Green, Color3.new(1, 1, 1), Color3.fromRGB(255, 140, 30),
+}
+
+local function confetti(center, count)
+	if not Config.Confetti then
+		return
+	end
+	local layer = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 5 }, gui)
+	local bits = {}
+	for _ = 1, count do
+		local angle = math.rad(math.random(200, 340)) -- mostly upwards
+		local speed = math.random(260, 620)
+		local bit = make("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(center.X, center.Y),
+			Size = UDim2.fromOffset(math.random(6, 11), math.random(10, 16)),
+			BackgroundColor3 = CONFETTI_COLORS[math.random(#CONFETTI_COLORS)],
+			BorderSizePixel = 0,
+			Rotation = math.random(0, 360),
+		}, layer)
+		table.insert(bits, {
+			frame = bit,
+			pos = center,
+			vel = Vector2.new(math.cos(angle), math.sin(angle)) * speed,
+			spin = math.random(-540, 540),
+		})
+	end
+	local life, age = 2.2, 0
+	local connection
+	connection = RunService.RenderStepped:Connect(function(dt)
+		age += dt
+		for _, b in bits do
+			b.vel = Vector2.new(b.vel.X * (1 - 1.6 * dt), b.vel.Y + 900 * dt)
+			b.pos += b.vel * dt
+			b.frame.Position = UDim2.fromOffset(b.pos.X, b.pos.Y)
+			b.frame.Rotation += b.spin * dt
+			b.frame.BackgroundTransparency = math.clamp((age - life * 0.6) / (life * 0.4), 0, 1)
+		end
+		if age >= life then
+			connection:Disconnect()
+			layer:Destroy()
+		end
+	end)
+end
+
+--------------------------------------------------------------------------------
+-- Banner queue
+--------------------------------------------------------------------------------
+
+local queue = {}
+local running = false
+
+local function runQueue()
+	running = true
+	while #queue > 0 do
+		local show = table.remove(queue, 1)
+		local ok, err = pcall(show)
+		if not ok then
+			warn("[TutorialAndAlerts] banner failed: " .. tostring(err))
+		end
+		task.wait(0.25)
+	end
+	running = false
+end
+
+local function enqueue(show)
+	table.insert(queue, show)
+	if not running then
+		task.spawn(runQueue)
+	end
+end
+
+-- Fades a banner in, holds it, then fades it out and removes it.
+local function present(root, scale, hold)
+	local y = root.Position
+	root.GroupTransparency = 1
+	root.Position = y + UDim2.fromOffset(0, -30)
+	scale.Scale = screenScale() * 0.8
+	root.Parent = gui
+	tween(root, 0.3, { GroupTransparency = 0, Position = y })
+	tween(scale, 0.45, { Scale = screenScale() }, Enum.EasingStyle.Back)
+	task.wait(hold)
+	tween(root, 0.4, { GroupTransparency = 1, Position = y + UDim2.fromOffset(0, -24) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	task.wait(0.45)
+	root:Destroy()
+end
+
+local function bannerCenter(root, yOffset)
+	local view = Workspace.CurrentCamera.ViewportSize
+	return Vector2.new(view.X * 0.5, view.Y * root.Position.Y.Scale + yOffset * screenScale())
+end
+
+--------------------------------------------------------------------------------
+-- Level-up banner
+--------------------------------------------------------------------------------
+
+local function islandInfo(name)
+	local squashed = name:lower():gsub("[%s_%-]", "")
+	for _, island in Config.Islands do
+		if island.Name:lower():gsub("[%s_%-]", "") == squashed then
+			return island
+		end
+	end
+	return nil
+end
+
+local function nextIsland(level)
+	local best = nil
+	for _, island in Config.Islands do
+		if island.Level and island.Level > level and (not best or island.Level < best.Level) then
+			best = island
+		end
+	end
+	return best
+end
+
+local function showLevelUp(level, previous)
+	Style.playSound(Config.Sounds.LevelUp, Config.Volume)
+
+	local root = make("CanvasGroup", {
+		Name = "LevelUp",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.1, 0),
+		Size = UDim2.fromOffset(480, 420),
+		BackgroundTransparency = 1,
+	})
+	local scale = make("UIScale", {}, root)
+
+	-- Spinning light rays and a soft glow behind the badge.
+	local rays = {}
+	for i = 0, 5 do
+		local ray = make("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(240, 100),
+			Size = UDim2.fromOffset(320, 18),
+			BackgroundColor3 = C.Gold,
+			BorderSizePixel = 0,
+			Rotation = i * 30,
+		}, root)
+		make("UIGradient", {
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.5, 0.35),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+		}, ray)
+		table.insert(rays, ray)
+	end
+	local glow = make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(240, 100),
+		Size = UDim2.fromOffset(190, 190),
+		BackgroundColor3 = C.Gold,
+		BackgroundTransparency = 0.75,
+		BorderSizePixel = 0,
+	}, root)
+	Style.corner(glow, UDim.new(0.5, 0))
+
+	-- Round gold badge with the new level number.
+	local badge = make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(240, 100),
+		Size = UDim2.fromOffset(136, 136),
+		BorderSizePixel = 0,
+	}, root)
+	Style.gradient(badge, C.GoldTop, C.GoldBottom)
+	Style.border(badge, C.GoldBorder, 4)
+	Style.corner(badge, UDim.new(0.5, 0))
+	local badgeScale = make("UIScale", { Scale = 0 }, badge)
+	Style.label({
+		Text = "LEVEL",
+		FontFace = Style.FontTitle,
+		TextSize = 16,
+		TextColor3 = C.DarkText,
+		Position = UDim2.fromScale(0, 0.17),
+		Size = UDim2.new(1, 0, 0, 18),
+	}, badge)
+	Style.label({
+		Text = tostring(level),
+		FontFace = Style.FontTitle,
+		TextScaled = true,
+		TextColor3 = C.DarkText,
+		Position = UDim2.fromScale(0.1, 0.33),
+		Size = UDim2.fromScale(0.8, 0.48),
+	}, badge)
+
+	-- Red "LEVEL UP!" ribbon.
+	local ribbon = make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromOffset(240, 172),
+		Size = UDim2.fromOffset(300, 48),
+		BorderSizePixel = 0,
+	}, root)
+	Style.gradient(ribbon, C.HeaderTop, C.HeaderBottom)
+	Style.border(ribbon, C.WindowBorder, 2)
+	Style.corner(ribbon, UDim.new(0, 6))
+	Style.label({
+		Text = "LEVEL UP!",
+		FontFace = Style.FontTitle,
+		TextSize = 30,
+		TextStrokeTransparency = 0.3,
+		Size = UDim2.fromScale(1, 1),
+	}, ribbon)
+
+	-- Card explaining what the level means.
+	local card = make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromOffset(240, 232),
+		Size = UDim2.fromOffset(440, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BorderSizePixel = 0,
+	}, root)
+	Style.gradient(card, C.CardTop, C.CardBottom)
+	Style.border(card, C.CardBorder, 2)
+	Style.corner(card)
+	make("UIPadding", {
+		PaddingTop = UDim.new(0, 10),
+		PaddingBottom = UDim.new(0, 12),
+		PaddingLeft = UDim.new(0, 16),
+		PaddingRight = UDim.new(0, 16),
+	}, card)
+	make("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, card)
+
+	local function line(text, color, size, order)
+		Style.label({
+			Text = text,
+			TextColor3 = color,
+			TextSize = size,
+			FontFace = Style.FontBold,
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			LayoutOrder = order,
+		}, card)
+	end
+
+	local gained = level - previous
+	line(
+		gained > 1 and string.format("You went up <b>%d levels</b> and reached <b>level %d</b>!", gained, level)
+			or string.format("You reached <b>level %d</b>!", level),
+		C.Text,
+		18,
+		1
+	)
+	local order = 2
+	for l = previous + 1, level do
+		local reward = Config.LevelRewards[l]
+		if reward then
+			line("★  " .. reward, C.Gold, 16, order)
+			order += 1
+		end
+	end
+	local upcoming = nextIsland(level)
+	if upcoming then
+		line(
+			string.format("Next: <b>%s</b> unlocks at level %d (%d to go)", upcoming.Name, upcoming.Level, upcoming.Level - level),
+			C.SubText,
+			15,
+			order
+		)
+	else
+		line("Keep questing to earn more XP and level up again.", C.SubText, 15, order)
+	end
+
+	local spin = RunService.RenderStepped:Connect(function(dt)
+		for _, ray in rays do
+			ray.Rotation += 25 * dt
+		end
+		glow.BackgroundTransparency = 0.72 + math.sin(os.clock() * 4) * 0.08
+	end)
+	root.Destroying:Connect(function()
+		spin:Disconnect()
+	end)
+
+	task.delay(0.1, function()
+		tween(badgeScale, 0.55, { Scale = 1 }, Enum.EasingStyle.Back)
+		confetti(bannerCenter(root, 100), 50)
+	end)
+	present(root, scale, Config.BannerTime)
+end
+
+--------------------------------------------------------------------------------
+-- Island-unlocked banner
+--------------------------------------------------------------------------------
+
+local function showIsland(name, description)
+	local info = islandInfo(name) or {}
+	description = description or info.Description
+	Style.playSound(Config.Sounds.Island, Config.Volume)
+
+	local root = make("CanvasGroup", {
+		Name = "IslandUnlocked",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0.12, 0),
+		Size = UDim2.fromOffset(540, 250),
+		BackgroundTransparency = 1,
+	})
+	local scale = make("UIScale", {}, root)
+
+	local window = make("Frame", { Size = UDim2.new(1, -6, 1, -6), Position = UDim2.fromOffset(3, 3), BorderSizePixel = 0 }, root)
+	Style.gradient(window, C.WindowTop, C.WindowBottom)
+	Style.border(window, C.WindowBorder, 3)
+	Style.corner(window)
+
+	local header = make("Frame", { Size = UDim2.new(1, 0, 0, 46), BorderSizePixel = 0, ClipsDescendants = true }, window)
+	Style.gradient(header, C.HeaderTop, C.HeaderBottom)
+	Style.corner(header, UDim.new(0, 6))
+	Style.label({
+		Text = "🔓  NEW ISLAND UNLOCKED",
+		FontFace = Style.FontTitle,
+		TextSize = 22,
+		TextStrokeTransparency = 0.3,
+		Size = UDim2.fromScale(1, 1),
+	}, header)
+	local shine = make("Frame", {
+		Position = UDim2.fromScale(-0.4, 0),
+		Size = UDim2.fromScale(0.3, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Rotation = 0,
+	}, header)
+	make("UIGradient", {
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.5, 0.6),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+	}, shine)
+
+	-- Picture of the island (or a big island emoji).
+	local slot = make("Frame", {
+		Position = UDim2.fromOffset(18, 62),
+		Size = UDim2.fromOffset(150, 150),
+		BackgroundColor3 = C.Slot,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, window)
+	Style.border(slot, C.Gold, 2)
+	Style.corner(slot, UDim.new(0, 6))
+	Style.icon(info.Image ~= nil and info.Image ~= "" and info.Image or "🏝️", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(info.Image and info.Image ~= "" and 1 or 0.7, info.Image and info.Image ~= "" and 1 or 0.7),
+	}, slot)
+
+	local text = make("Frame", {
+		Position = UDim2.fromOffset(186, 60),
+		Size = UDim2.new(1, -204, 1, -76),
+		BackgroundTransparency = 1,
+	}, window)
+	make("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, text)
+	local function line(content, color, size, font, order)
+		Style.label({
+			Text = content,
+			TextColor3 = color,
+			TextSize = size,
+			FontFace = font,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			LayoutOrder = order,
+		}, text)
+	end
+	line(name, C.Gold, 32, Style.FontTitle, 1)
+	if description and description ~= "" then
+		line(description, C.SubText, 16, Style.FontBody, 2)
+	end
+	if info.Level then
+		line(string.format("Unlocked for reaching <b>level %d</b>.", info.Level), C.Text, 15, Style.FontBold, 3)
+	end
+	if Config.IslandHint and Config.IslandHint ~= "" then
+		line("➜  " .. Config.IslandHint, C.Green, 15, Style.FontBold, 4)
+	end
+
+	task.delay(0.35, function()
+		tween(shine, 0.9, { Position = UDim2.fromScale(1.2, 0) }, Enum.EasingStyle.Sine)
+		confetti(bannerCenter(root, 40), 60)
+	end)
+	present(root, scale, Config.BannerTime + 1)
+end
+
+--------------------------------------------------------------------------------
+-- Small pop-ups (top-right)
+--------------------------------------------------------------------------------
+
+local toasts = make("Frame", {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -16, 0, 64),
+	Size = UDim2.new(0, 320, 1, -80),
+	BackgroundTransparency = 1,
+}, gui)
+make("UIListLayout", {
+	Padding = UDim.new(0, 8),
+	HorizontalAlignment = Enum.HorizontalAlignment.Right,
+	SortOrder = Enum.SortOrder.LayoutOrder,
+}, toasts)
+local toastScale = make("UIScale", {}, toasts) -- smaller on phones so pop-ups don't cover the banners
+local toastCount = 0
+
+local function showToast(title, body)
+	Style.playSound(Config.Sounds.Toast, Config.Volume)
+	toastScale.Scale = screenScale()
+	toastCount += 1
+	local holder = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 72),
+		BackgroundTransparency = 1,
+		LayoutOrder = toastCount,
+	}, toasts)
+	local card = make("CanvasGroup", {
+		Size = UDim2.fromScale(1, 1),
+		Position = UDim2.fromOffset(340, 0),
+		GroupTransparency = 1,
+		BorderSizePixel = 0,
+	}, holder)
+	Style.gradient(card, C.CardTop, C.CardBottom)
+	Style.corner(card)
+	make("Frame", { Size = UDim2.new(0, 5, 1, 0), BackgroundColor3 = C.Gold, BorderSizePixel = 0 }, card)
+	Style.label({
+		Text = tostring(title or ""),
+		FontFace = Style.FontTitle,
+		TextSize = 17,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(18, 8),
+		Size = UDim2.new(1, -30, 0, 20),
+	}, card)
+	Style.label({
+		Text = tostring(body or ""),
+		TextColor3 = C.SubText,
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Position = UDim2.fromOffset(18, 30),
+		Size = UDim2.new(1, -30, 0, 36),
+	}, card)
+
+	tween(card, 0.35, { Position = UDim2.fromOffset(0, 0), GroupTransparency = 0 }, Enum.EasingStyle.Back)
+	task.delay(Config.ToastTime, function()
+		tween(card, 0.3, { Position = UDim2.fromOffset(340, 0), GroupTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		task.wait(0.35)
+		holder:Destroy()
+	end)
+end
+
+--------------------------------------------------------------------------------
+-- Working out when to show them
+--------------------------------------------------------------------------------
+
+local joinedAt = os.clock()
+local function loading()
+	return os.clock() - joinedAt < Config.JoinGraceSeconds
+end
+
+local shownLevel = nil -- highest level the player is known to have reached
+local knownIslands = {} -- squashed island name -> true once announced (or already owned)
+
+local function squash(name)
+	return (name:lower():gsub("[%s_%-]", ""))
+end
+
+local function islandUnlocked(name, description)
+	if not name or name == "" or knownIslands[squash(name)] then
+		return
+	end
+	knownIslands[squash(name)] = true
+	enqueue(function()
+		showIsland(name, description)
+	end)
+end
+
+local function knowIslandsUpTo(level)
+	for _, island in Config.Islands do
+		if island.Level and island.Level <= level then
+			knownIslands[squash(island.Name)] = true
+		end
+	end
+end
+
+local function levelReached(level, fromValue)
+	level = math.floor(level)
+	if shownLevel == nil or (fromValue and loading()) then
+		-- First reading (or data still loading): this is where the player starts.
+		shownLevel = level
+		knowIslandsUpTo(level)
+		return
+	end
+	if level < shownLevel then
+		shownLevel = level -- level was reset (e.g. a rebirth), so count up from here again
+		return
+	end
+	if level == shownLevel then
+		return -- already shown
+	end
+	local previous = shownLevel
+	shownLevel = level
+	enqueue(function()
+		showLevelUp(level, previous)
+	end)
+	for _, island in Config.Islands do
+		if island.Level and island.Level > previous and island.Level <= level then
+			islandUnlocked(island.Name)
+		end
+	end
+end
+
+PlayerStats.watchLevel(player, Config.LevelNames, function(level)
+	levelReached(level, true)
+end)
+
+-- "Island_FrostPeaks" / "FrostPeaksUnlocked" -> "Frost Peaks" (or the name in Config.Islands).
+local function islandNameFrom(raw)
+	local name = raw:gsub("[Ii][Ss][Ll][Aa][Nn][Dd][Ss]?", ""):gsub("[Uu]nlocked", ""):gsub("[_%-]+", " ")
+	name = name:gsub("(%l)(%u)", "%1 %2"):gsub("^%s+", ""):gsub("%s+$", "")
+	if name == "" then
+		return nil
+	end
+	local info = islandInfo(name)
+	return info and info.Name or name
+end
+
+local function found(name)
+	if not name then
+		return
+	end
+	if loading() then
+		knownIslands[squash(name)] = true -- owned before this visit
+	else
+		islandUnlocked(name)
+	end
+end
+
+local function watchIslandValue(value)
+	local parent = value.Parent
+	local inFolder = parent and parent ~= player and parent.Name:lower():find("island") ~= nil
+	local named = value.Name:lower():find("island") ~= nil
+	if not inFolder and not named then
+		return
+	end
+	local function name()
+		if inFolder then
+			if value:IsA("StringValue") and value.Value ~= "" then
+				return value.Value
+			end
+			return value.Name
+		end
+		return islandNameFrom(value.Name)
+	end
+	if value:IsA("BoolValue") then
+		local function check()
+			if value.Value then
+				found(name())
+			end
+		end
+		value.Changed:Connect(check)
+		check()
+	elseif inFolder and (value:IsA("ValueBase") or value:IsA("Folder") or value:IsA("Configuration")) then
+		if not value:IsA("NumberValue") and not value:IsA("IntValue") then
+			found(name()) -- just being in the folder means it's unlocked
+		end
+	end
+end
+
+if Config.DetectIslands then
+	player.AttributeChanged:Connect(function(attribute)
+		if attribute:lower():find("island") and player:GetAttribute(attribute) == true then
+			found(islandNameFrom(attribute))
+		end
+	end)
+	for attribute, value in player:GetAttributes() do
+		if attribute:lower():find("island") and value == true then
+			found(islandNameFrom(attribute))
+		end
+	end
+	local function candidate(value)
+		return (value:IsA("ValueBase") or value:IsA("Folder") or value:IsA("Configuration"))
+			and not value:FindFirstAncestorOfClass("PlayerGui")
+			and not value:FindFirstAncestorOfClass("Backpack")
+	end
+	player.DescendantAdded:Connect(function(value)
+		if candidate(value) then
+			task.defer(watchIslandValue, value) -- let its name and value replicate first
+		end
+	end)
+	for _, value in player:GetDescendants() do
+		if candidate(value) then
+			watchIslandValue(value)
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Calls from server scripts (Notify) and the tutorial
+--------------------------------------------------------------------------------
+
+local function handle(kind, ...)
+	if kind == "LevelUp" then
+		local level = tonumber((...))
+		if level then
+			if shownLevel == nil then
+				shownLevel = level - 1
+			end
+			levelReached(level, false)
+		end
+	elseif kind == "Island" then
+		local name, description = ...
+		if typeof(name) == "string" then
+			islandUnlocked(name, typeof(description) == "string" and description or nil)
+		end
+	elseif kind == "Toast" then
+		local title, body = ...
+		showToast(title, body)
+	end
+end
+
+Notify.Remote.OnClientEvent:Connect(handle)
+Notify.LocalEvent.Event:Connect(handle)
+]]></ProtectedString>
+			</Properties>
+		</Item>
+	</Item>
+</roblox>
