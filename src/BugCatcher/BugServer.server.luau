@@ -35,6 +35,10 @@ local create = Util.create
 
 local remote = folder:FindFirstChild("BugRemote") or create("RemoteEvent", { Name = "BugRemote", Parent = folder })
 
+Collection.notify = function(player, title, text)
+	remote:FireClient(player, "Notice", title, text)
+end
+
 local oldFolder = Workspace:FindFirstChild("Bugs")
 if oldFolder then
 	oldFolder:Destroy()
@@ -362,7 +366,7 @@ for _, player in Players:GetPlayers() do
 end
 Players.PlayerRemoving:Connect(function(player)
 	lastSwing[player] = nil
-	Collection.remove(player)
+	Collection.release(player) -- saves their Bug Book
 end)
 
 -- ------------------------------------------------------------------ main loop
