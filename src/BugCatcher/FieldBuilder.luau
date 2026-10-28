@@ -213,7 +213,7 @@ local function buildFlower(parent, rng, species, position)
 	for i = 0, 2 do
 		ellipsoid(decor({
 			Name = "Petals",
-			Size = Vector3.new(0.24 * s, 0.06 * s, 0.95 * s),
+			Size = Vector3.new(0.3 * s, 0.07 * s, 1.15 * s),
 			CFrame = head * CFrame.Angles(0, i * math.pi / 3, 0),
 			Color = species.petal,
 			Material = Enum.Material.SmoothPlastic,
@@ -223,13 +223,34 @@ local function buildFlower(parent, rng, species, position)
 	end
 	ellipsoid(decor({
 		Name = "Center",
-		Size = Vector3.new(0.32, 0.16, 0.32) * s,
+		Size = Vector3.new(0.38, 0.18, 0.38) * s,
 		CFrame = head * CFrame.new(0, 0.04 * s, 0),
 		Color = species.center,
 		Material = Enum.Material.SmoothPlastic,
 		CastShadow = false,
 		Parent = model,
 	}))
+	model.Parent = parent
+end
+
+-- A tuft of long grass blades leaning out in all directions.
+local function buildTuft(parent, rng, position)
+	local model = create("Model", { Name = "Grass" })
+	local hue = rng:NextNumber(0.24, 0.29)
+	for i = 1, 4 do
+		local height = rng:NextNumber(1.2, 2.4)
+		local yaw = i / 4 * math.pi * 2 + rng:NextNumber(-0.4, 0.4)
+		local lean = rng:NextNumber(0.15, 0.45)
+		decor({
+			Name = "Blade",
+			Size = Vector3.new(0.06, height, 0.32),
+			CFrame = CFrame.new(position) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(lean, 0, 0) * CFrame.new(0, height / 2, 0),
+			Color = Color3.fromHSV(hue, rng:NextNumber(0.5, 0.65), rng:NextNumber(0.5, 0.62)),
+			Material = Enum.Material.SmoothPlastic,
+			CastShadow = false,
+			Parent = model,
+		})
+	end
 	model.Parent = parent
 end
 
@@ -305,12 +326,16 @@ function FieldBuilder.build(config)
 		buildRock(plants, rng, groundAt(randomPoint(rng, 18, radius + 30)))
 	end
 
+	for _ = 1, config.GrassTufts do
+		buildTuft(plants, rng, randomPoint(rng, 6, radius))
+	end
+
 	-- Flowers grow in patches of one kind, like a real meadow.
 	for _ = 1, config.FlowerPatches do
 		local species = FLOWERS[rng:NextInteger(1, #FLOWERS)]
 		local center = randomPoint(rng, 8, radius - 5)
-		local spread = rng:NextNumber(3.5, 8)
-		local count = species.name == "Sunflower" and rng:NextInteger(3, 5) or rng:NextInteger(5, 10)
+		local spread = rng:NextNumber(4, 9)
+		local count = species.name == "Sunflower" and rng:NextInteger(3, 6) or rng:NextInteger(7, 14)
 		for _ = 1, count do
 			local offset = randomPoint(rng, 0, spread)
 			buildFlower(flowers, rng, species, center + offset)

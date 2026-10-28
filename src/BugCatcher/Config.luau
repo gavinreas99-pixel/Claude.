@@ -9,7 +9,8 @@ return {
 	TreeCount = 30,
 	BushCount = 22,
 	RockCount = 12,
-	FlowerPatches = 34,
+	FlowerPatches = 55,
+	GrassTufts = 260,
 	RemoveBaseplate = true, -- delete the template "Baseplate" so it doesn't cover the grass
 
 	-- Day and night ----------------------------------------------------------

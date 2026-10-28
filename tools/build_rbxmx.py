@@ -13,9 +13,13 @@ PACKAGES = {
         ("Config.luau", "Config", "ModuleScript", None),
         ("Util.luau", "Util", "ModuleScript", None),
         ("Environment.luau", "Environment", "ModuleScript", None),
+        ("BugData.luau", "BugData", "ModuleScript", None),
+        ("BugBuilder.luau", "BugBuilder", "ModuleScript", None),
         ("FieldBuilder.luau", "FieldBuilder", "ModuleScript", None),
         ("WorldServer.server.luau", "WorldServer", "Script", 1),
         ("WorldClient.client.luau", "WorldClient", "Script", 2),
+        ("BugServer.server.luau", "BugServer", "Script", 1),
+        ("BugVisuals.client.luau", "BugVisuals", "Script", 2),
     ],
     "JadeJungleGoblins": [
         ("Config.luau", "Config", "ModuleScript", None),

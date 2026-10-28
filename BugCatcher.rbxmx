@@ -15,7 +15,8 @@ return {
 	TreeCount = 30,
 	BushCount = 22,
 	RockCount = 12,
-	FlowerPatches = 34,
+	FlowerPatches = 55,
+	GrassTufts = 260,
 	RemoveBaseplate = true, -- delete the template "Baseplate" so it doesn't cover the grass
 
 	-- Day and night ----------------------------------------------------------
@@ -221,6 +222,630 @@ return Environment
 			</Properties>
 		</Item>
 		<Item class="ModuleScript" referent="RBX4">
+			<Properties>
+				<string name="Name">BugData</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	BugData: every bug in the game, in collection-book order.
+
+	Fields:
+	  Id       unique key, also used in saved data (don't rename once players have it)
+	  Name     shown in the book and popups
+	  Rarity   "Common" (any time), "Rare" (night only) or "Epic" (rain only)
+	  Shape    body plan BugBuilder draws: Beetle, Bee, Butterfly, Dragonfly, Hopper, Ant, Worm
+	  Move     "Fly" or "Crawl"
+	  Scale    size multiplier
+	  Speed    wandering speed in studs per second
+	  Colors   colours for BugBuilder (Body, Accent, Wing, Glow, ...)
+]]
+
+local function rgb(r, g, b)
+	return Color3.fromRGB(r, g, b)
+end
+
+local BugData = {}
+
+BugData.Rarities = {
+	Common = {
+		Order = 1,
+		Color = rgb(112, 190, 96),
+		Hint = "Any time",
+		Glow = false,
+		FleeRadius = 11, -- studs: how close a player can get before the bug runs
+		FleeSpeed = 9.5,
+	},
+	Rare = {
+		Order = 2,
+		Color = rgb(112, 156, 255),
+		Hint = "Only at night",
+		Glow = true,
+		FleeRadius = 13,
+		FleeSpeed = 11.5,
+	},
+	Epic = {
+		Order = 3,
+		Color = rgb(255, 168, 40),
+		Hint = "Only in the rain",
+		Glow = true,
+		FleeRadius = 14,
+		FleeSpeed = 12.5,
+	},
+}
+
+BugData.List = {
+	{
+		Id = "Ladybug",
+		Name = "Ladybug",
+		Rarity = "Common",
+		Shape = "Beetle",
+		Move = "Crawl",
+		Scale = 1,
+		Speed = 3.5,
+		Spots = true,
+		Colors = { Body = rgb(30, 28, 30), Shell = rgb(222, 38, 32), Accent = rgb(20, 20, 20) },
+	},
+	{
+		Id = "Honeybee",
+		Name = "Honeybee",
+		Rarity = "Common",
+		Shape = "Bee",
+		Move = "Fly",
+		Scale = 1,
+		Speed = 7,
+		Colors = { Body = rgb(246, 186, 36), Accent = rgb(40, 30, 22), Fuzz = rgb(196, 140, 44), Wing = rgb(228, 240, 255) },
+	},
+	{
+		Id = "CabbageWhite",
+		Name = "Cabbage White",
+		Rarity = "Common",
+		Shape = "Butterfly",
+		Move = "Fly",
+		Scale = 1.15,
+		Speed = 5,
+		Colors = { Body = rgb(70, 70, 72), Wing = rgb(250, 250, 242), Accent = rgb(52, 52, 56) },
+	},
+	{
+		Id = "Grasshopper",
+		Name = "Grasshopper",
+		Rarity = "Common",
+		Shape = "Hopper",
+		Move = "Crawl",
+		Scale = 1.2,
+		Speed = 5,
+		Colors = { Body = rgb(112, 172, 58), Accent = rgb(78, 128, 40) },
+	},
+	{
+		Id = "BlueDragonfly",
+		Name = "Blue Dragonfly",
+		Rarity = "Common",
+		Shape = "Dragonfly",
+		Move = "Fly",
+		Scale = 1.3,
+		Speed = 9,
+		Colors = { Body = rgb(40, 118, 222), Accent = rgb(24, 60, 120), Wing = rgb(220, 236, 255) },
+	},
+	{
+		Id = "BlackAnt",
+		Name = "Black Ant",
+		Rarity = "Common",
+		Shape = "Ant",
+		Move = "Crawl",
+		Scale = 1,
+		Speed = 4.5,
+		Colors = { Body = rgb(36, 30, 30), Accent = rgb(70, 50, 44) },
+	},
+	{
+		Id = "Firefly",
+		Name = "Firefly",
+		Rarity = "Rare",
+		Shape = "Bee",
+		Move = "Fly",
+		Scale = 1,
+		Speed = 4,
+		Colors = { Body = rgb(62, 52, 40), Accent = rgb(196, 64, 40), Fuzz = rgb(70, 58, 46), Wing = rgb(150, 132, 100), Glow = rgb(214, 255, 80) },
+	},
+	{
+		Id = "LunaMoth",
+		Name = "Luna Moth",
+		Rarity = "Rare",
+		Shape = "Butterfly",
+		Move = "Fly",
+		Scale = 1.45,
+		Speed = 4,
+		Tails = true,
+		Colors = { Body = rgb(240, 240, 220), Wing = rgb(186, 240, 168), Accent = rgb(236, 196, 112), Glow = rgb(160, 255, 200) },
+	},
+	{
+		Id = "Glowworm",
+		Name = "Glowworm",
+		Rarity = "Rare",
+		Shape = "Worm",
+		Move = "Crawl",
+		Scale = 1.2,
+		Speed = 2.5,
+		Colors = { Body = rgb(58, 84, 88), Glow = rgb(80, 236, 255) },
+	},
+	{
+		Id = "RainbowScarab",
+		Name = "Rainbow Scarab",
+		Rarity = "Epic",
+		Shape = "Beetle",
+		Move = "Crawl",
+		Scale = 1.3,
+		Speed = 4,
+		Rainbow = true,
+		Colors = { Body = rgb(40, 30, 60), Shell = rgb(170, 70, 255), Accent = rgb(60, 220, 200), Glow = rgb(220, 120, 255) },
+	},
+	{
+		Id = "StormDragonfly",
+		Name = "Storm Dragonfly",
+		Rarity = "Epic",
+		Shape = "Dragonfly",
+		Move = "Fly",
+		Scale = 1.5,
+		Speed = 10,
+		Colors = { Body = rgb(96, 70, 226), Accent = rgb(150, 220, 255), Wing = rgb(190, 214, 255), Glow = rgb(130, 196, 255) },
+	},
+	{
+		Id = "CrystalButterfly",
+		Name = "Crystal Butterfly",
+		Rarity = "Epic",
+		Shape = "Butterfly",
+		Move = "Fly",
+		Scale = 1.55,
+		Speed = 5,
+		Crystal = true,
+		Colors = { Body = rgb(150, 220, 240), Wing = rgb(170, 238, 255), Accent = rgb(255, 255, 255), Glow = rgb(196, 248, 255) },
+	},
+}
+
+BugData.ById = {}
+BugData.ByRarity = { Common = {}, Rare = {}, Epic = {} }
+for index, bug in BugData.List do
+	bug.Order = index
+	BugData.ById[bug.Id] = bug
+	table.insert(BugData.ByRarity[bug.Rarity], bug)
+end
+
+return BugData
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX5">
+			<Properties>
+				<string name="Name">BugBuilder</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	BugBuilder
+
+	Draws a bug out of small rounded parts. Each bug faces -Z with its body
+	centre at the origin. Moving parts (wings, legs, antennae, worm segments)
+	are recorded with the hinge they turn around, so BugVisuals can flap and
+	scuttle them every frame without any joints or physics.
+
+	Usage:
+		local rig = BugBuilder.build(BugData.ById.Ladybug, { effects = true })
+		rig.model.Parent = workspace
+		-- rig.parts: { part, rel, kind, side, hinge, phase, index }
+		-- rig.glow / rig.rainbow: parts to pulse or recolour, rig.light: PointLight or nil
+
+	BugBuilder.groundOffset(bug) is how high a crawling bug's centre sits
+	above the ground; the server uses it too, so it builds nothing on require.
+]]
+
+local Util = require(script.Parent:WaitForChild("Util"))
+local BugData = require(script.Parent:WaitForChild("BugData"))
+local create, ellipsoid = Util.create, Util.ellipsoid
+
+local BugBuilder = {}
+
+local SIZE = 1.3 -- a Scale 1 bug's body is about 1.3 studs long
+
+local SHAPE_HEIGHT = {
+	Beetle = 0.38,
+	Bee = 0.38,
+	Butterfly = 0.1,
+	Dragonfly = 0.12,
+	Hopper = 0.36,
+	Ant = 0.3,
+	Worm = 0.16,
+}
+
+local DARK = Color3.fromRGB(22, 20, 24)
+local WHITE = Color3.fromRGB(245, 245, 240)
+
+local V = Vector3.new
+
+function BugBuilder.scale(bug)
+	return SIZE * bug.Scale
+end
+
+function BugBuilder.groundOffset(bug)
+	return (SHAPE_HEIGHT[bug.Shape] or 0.3) * BugBuilder.scale(bug)
+end
+
+local function scaled(cf, s)
+	return CFrame.new(cf.Position * s) * cf.Rotation
+end
+
+-- A CFrame at `from` whose X axis (a cylinder's length) points at `to`.
+local function along(from, to)
+	local direction = to - from
+	local up = math.abs(direction.Unit.Y) > 0.98 and Vector3.xAxis or Vector3.yAxis
+	return CFrame.lookAt((from + to) / 2, to, up) * CFrame.Angles(0, math.pi / 2, 0)
+end
+
+local function add(rig, spec)
+	local s = rig.scale
+	local cf = scaled(spec.cf, s)
+	local transparency = spec.transparency or 0
+	local part = create("Part", {
+		Name = spec.name or "Part",
+		Anchored = true,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Massless = true,
+		CastShadow = transparency < 0.3,
+		TopSurface = Enum.SurfaceType.Smooth,
+		BottomSurface = Enum.SurfaceType.Smooth,
+		Size = spec.size * s,
+		CFrame = cf,
+		Color = spec.color,
+		Material = spec.material or Enum.Material.SmoothPlastic,
+		Transparency = transparency,
+		Reflectance = spec.reflectance or 0,
+	})
+	if spec.shape == "cyl" then
+		part.Shape = Enum.PartType.Cylinder
+	elseif spec.shape ~= "block" then
+		ellipsoid(part)
+	end
+	part.Parent = rig.model
+	if not rig.model.PrimaryPart then
+		rig.model.PrimaryPart = part
+	end
+
+	local hinge = spec.hinge and scaled(spec.hinge, s)
+	table.insert(rig.parts, {
+		part = part,
+		rel = hinge and hinge:Inverse() * cf or cf,
+		kind = spec.kind,
+		side = spec.side or 1,
+		hinge = hinge,
+		phase = spec.phase or 0,
+		index = spec.index or 0,
+	})
+	if spec.glow then
+		table.insert(rig.glow, part)
+	end
+	if spec.rainbow then
+		table.insert(rig.rainbow, part)
+	end
+	return part
+end
+
+-- A thin cylinder from one point to another (legs, antennae).
+local function limb(rig, from, to, thickness, color, kind, side, phase)
+	return add(rig, {
+		name = kind == "antenna" and "Antenna" or "Leg",
+		shape = "cyl",
+		size = V((to - from).Magnitude, thickness, thickness),
+		cf = along(from, to),
+		color = color,
+		kind = kind,
+		side = side,
+		hinge = CFrame.new(from),
+		phase = phase,
+	})
+end
+
+local function antennae(rig, from, to, color, club)
+	for _, side in { -1, 1 } do
+		local a = V(from.X * side, from.Y, from.Z)
+		local b = V(to.X * side, to.Y, to.Z)
+		limb(rig, a, b, 0.03, color, "antenna", side, side)
+		if club then
+			add(rig, { name = "Club", size = V(0.07, 0.07, 0.1), cf = CFrame.new(b), color = color, kind = "antenna", side = side, hinge = CFrame.new(a), phase = side })
+		end
+	end
+end
+
+-- Six legs in two rows. `rows` = { { z, reachZ }, ... } front to back.
+local function sixLegs(rig, hipX, hipY, footX, footY, rows, thickness, color)
+	for i, row in rows do
+		for _, side in { -1, 1 } do
+			local hip = V(hipX * side, hipY, row[1])
+			local foot = V(footX * side, footY, row[1] + row[2])
+			-- Tripod gait: front and back legs on one side move with the middle leg on the other.
+			local phase = ((i + (side > 0 and 1 or 0)) % 2) * math.pi
+			limb(rig, hip, foot, thickness, color, "leg", side, phase)
+		end
+	end
+end
+
+local function wing(rig, spec, side)
+	spec.name = spec.name or "Wing"
+	spec.kind = "wing"
+	spec.side = side
+	return add(rig, spec)
+end
+
+local BUILDERS = {}
+
+function BUILDERS.Beetle(rig, bug)
+	local c = bug.Colors
+	add(rig, { name = "Body", size = V(0.7, 0.3, 0.85), cf = CFrame.new(0, -0.08, 0.04), color = c.Body })
+	add(rig, {
+		name = "Shell",
+		size = V(0.82, 0.5, 0.95),
+		cf = CFrame.new(0, 0.05, 0.06),
+		color = c.Shell,
+		reflectance = bug.Rainbow and 0.25 or 0.05,
+		rainbow = bug.Rainbow,
+	})
+	add(rig, { name = "Seam", shape = "block", size = V(0.025, 0.03, 0.6), cf = CFrame.new(0, 0.29, 0.12), color = c.Accent })
+	add(rig, { name = "Head", size = V(0.42, 0.3, 0.3), cf = CFrame.new(0, -0.02, -0.46), color = c.Body })
+
+	if bug.Spots then
+		-- Spots sit on the shell surface, tilted to follow its curve.
+		local a, b, cz = 0.41, 0.25, 0.475
+		for _, spot in { { 0.2, -0.12 }, { 0.27, 0.18 }, { 0.12, 0.42 } } do
+			for _, side in { -1, 1 } do
+				local x, z = spot[1] * side, spot[2]
+				local u = (x / a) ^ 2 + ((z - 0.06) / cz) ^ 2
+				local y = 0.05 + b * math.sqrt(math.max(0, 1 - u))
+				local position = V(x, y - 0.01, z)
+				local normal = V(x / a ^ 2, (y - 0.05) / b ^ 2, (z - 0.06) / cz ^ 2).Unit
+				add(rig, {
+					name = "Spot",
+					size = V(0.17, 0.06, 0.17),
+					cf = CFrame.lookAt(position, position + normal) * CFrame.Angles(-math.pi / 2, 0, 0),
+					color = c.Accent,
+				})
+			end
+		end
+		for _, side in { -1, 1 } do
+			add(rig, { name = "Cheek", size = V(0.1, 0.06, 0.08), cf = CFrame.new(0.12 * side, 0.08, -0.53), color = WHITE })
+		end
+	end
+
+	antennae(rig, V(0.08, 0.05, -0.58), V(0.18, 0.18, -0.78), c.Body, false)
+	sixLegs(rig, 0.28, -0.12, 0.48, -0.38, { { -0.22, -0.1 }, { 0.04, 0 }, { 0.3, 0.1 } }, 0.045, c.Body)
+end
+
+function BUILDERS.Bee(rig, bug)
+	local c = bug.Colors
+	local firefly = c.Glow ~= nil
+	add(rig, { name = "Body", size = V(0.42, 0.4, 0.42), cf = CFrame.new(0, 0.02, -0.08), color = c.Fuzz, material = Enum.Material.Fabric })
+	add(rig, { name = "Abdomen", size = V(0.44, 0.42, 0.68), cf = CFrame.new(0, -0.02, 0.36), color = c.Body })
+	if firefly then
+		add(rig, { name = "Lantern", size = V(0.36, 0.34, 0.3), cf = CFrame.new(0, -0.04, 0.6), color = c.Glow, material = Enum.Material.Neon, glow = true })
+	else
+		-- Stripes: thin rings just proud of the abdomen's surface.
+		for _, z in { 0.3, 0.46, 0.6 } do
+			local k = math.sqrt(1 - ((z - 0.36) / 0.34) ^ 2)
+			add(rig, { name = "Stripe", size = V(0.44 * k + 0.025, 0.42 * k + 0.025, 0.08), cf = CFrame.new(0, -0.02, z), color = c.Accent })
+		end
+	end
+	add(rig, { name = "Head", size = V(0.32, 0.3, 0.26), cf = CFrame.new(0, 0.03, -0.38), color = c.Accent })
+	for _, side in { -1, 1 } do
+		add(rig, { name = "Eye", size = V(0.13, 0.15, 0.12), cf = CFrame.new(0.12 * side, 0.06, -0.44), color = DARK, reflectance = 0.2 })
+	end
+	antennae(rig, V(0.06, 0.15, -0.46), V(0.14, 0.32, -0.62), DARK, false)
+	for _, side in { -1, 1 } do
+		local transparency = firefly and 0.15 or 0.45
+		wing(rig, {
+			size = V(0.62, 0.02, 0.26),
+			cf = CFrame.new(0.34 * side, 0.24, 0.02) * CFrame.Angles(0, -0.35 * side, 0),
+			color = c.Wing,
+			transparency = transparency,
+			hinge = CFrame.new(0.05 * side, 0.22, -0.06),
+		}, side)
+		wing(rig, {
+			size = V(0.42, 0.02, 0.2),
+			cf = CFrame.new(0.26 * side, 0.22, 0.16) * CFrame.Angles(0, -0.6 * side, 0),
+			color = c.Wing,
+			transparency = transparency,
+			hinge = CFrame.new(0.05 * side, 0.22, -0.06),
+		}, side)
+	end
+	sixLegs(rig, 0.14, -0.15, 0.24, -0.38, { { -0.14, 0.05 }, { -0.02, 0.05 }, { 0.1, 0.05 } }, 0.035, DARK)
+end
+
+function BUILDERS.Butterfly(rig, bug)
+	local c = bug.Colors
+	local wingMaterial = bug.Crystal and Enum.Material.Glass or Enum.Material.SmoothPlastic
+	local wingTransparency = bug.Crystal and 0.3 or 0
+	add(rig, { name = "Body", size = V(0.13, 0.13, 0.72), cf = CFrame.new(0, 0, 0.04), color = c.Body, material = Enum.Material.Fabric })
+	add(rig, { name = "Head", size = V(0.17, 0.16, 0.16), cf = CFrame.new(0, 0.02, -0.36), color = c.Body })
+	antennae(rig, V(0.04, 0.06, -0.42), V(0.16, 0.26, -0.72), c.Body, true)
+
+	for _, side in { -1, 1 } do
+		local foreHinge = CFrame.new(0.05 * side, 0.03, -0.05)
+		local hindHinge = CFrame.new(0.05 * side, 0.01, 0.08)
+		local fore = CFrame.new(0.42 * side, 0.03, -0.1) * CFrame.Angles(0, 0.3 * side, 0)
+		local hind = CFrame.new(0.32 * side, 0.01, 0.2) * CFrame.Angles(0, -0.45 * side, 0)
+		wing(rig, { size = V(0.78, 0.025, 0.56), cf = fore, color = c.Wing, material = wingMaterial, transparency = wingTransparency, hinge = foreHinge, glow = bug.Crystal }, side)
+		wing(rig, { size = V(0.58, 0.025, 0.48), cf = hind, color = c.Wing, material = wingMaterial, transparency = wingTransparency, hinge = hindHinge, glow = bug.Crystal }, side)
+
+		if bug.Tails then
+			-- Luna moth: eyespots and long trailing tails.
+			wing(rig, { name = "Eyespot", size = V(0.13, 0.03, 0.13), cf = hind * CFrame.new(0.02 * side, 0.004, 0), color = c.Accent, hinge = hindHinge }, side)
+			wing(rig, { name = "Tail", size = V(0.1, 0.025, 0.62), cf = hind * CFrame.new(0.06 * side, 0, 0.42), color = c.Wing, hinge = hindHinge }, side)
+		elseif bug.Crystal then
+			wing(rig, { name = "Shine", size = V(0.3, 0.03, 0.2), cf = fore * CFrame.new(0.12 * side, 0.004, -0.04), color = c.Accent, material = Enum.Material.Neon, transparency = 0.4, hinge = foreHinge, glow = true }, side)
+		else
+			-- Cabbage white: dark wing tips and a spot.
+			wing(rig, { name = "Tip", size = V(0.26, 0.03, 0.2), cf = fore * CFrame.new(0.26 * side, 0.004, -0.09), color = c.Accent, hinge = foreHinge }, side)
+			wing(rig, { name = "Dot", size = V(0.1, 0.03, 0.1), cf = fore * CFrame.new(0.06 * side, 0.004, 0.08), color = c.Accent, hinge = foreHinge }, side)
+		end
+	end
+end
+
+function BUILDERS.Dragonfly(rig, bug)
+	local c = bug.Colors
+	local storm = c.Glow ~= nil
+	add(rig, { name = "Body", size = V(0.22, 0.24, 0.36), cf = CFrame.new(0, 0, -0.2), color = c.Body })
+	add(rig, { name = "Tail", size = V(0.1, 0.1, 1.25), cf = CFrame.new(0, 0, 0.58), color = c.Body, reflectance = 0.15 })
+	for _, z in { 0.25, 0.5, 0.75, 0.98 } do
+		local k = math.sqrt(1 - ((z - 0.58) / 0.625) ^ 2)
+		add(rig, {
+			name = "Ring",
+			size = V(0.1 * k + 0.02, 0.1 * k + 0.02, 0.06),
+			cf = CFrame.new(0, 0, z),
+			color = storm and c.Glow or c.Accent,
+			material = storm and Enum.Material.Neon or Enum.Material.SmoothPlastic,
+			glow = storm,
+		})
+	end
+	add(rig, { name = "Head", size = V(0.26, 0.22, 0.2), cf = CFrame.new(0, 0.02, -0.44), color = c.Body })
+	for _, side in { -1, 1 } do
+		add(rig, { name = "Eye", size = V(0.17, 0.17, 0.17), cf = CFrame.new(0.09 * side, 0.05, -0.47), color = c.Accent, reflectance = 0.25 })
+		wing(rig, {
+			size = V(1, 0.02, 0.17),
+			cf = CFrame.new(0.54 * side, 0.13, -0.28) * CFrame.Angles(0, 0.08 * side, 0),
+			color = c.Wing,
+			transparency = 0.55,
+			hinge = CFrame.new(0.06 * side, 0.12, -0.26),
+		}, side)
+		wing(rig, {
+			size = V(0.95, 0.02, 0.2),
+			cf = CFrame.new(0.52 * side, 0.13, -0.08) * CFrame.Angles(0, -0.1 * side, 0),
+			color = c.Wing,
+			transparency = 0.55,
+			hinge = CFrame.new(0.06 * side, 0.12, -0.1),
+			phase = math.pi / 2,
+		}, side)
+	end
+end
+
+function BUILDERS.Hopper(rig, bug)
+	local c = bug.Colors
+	add(rig, { name = "Body", size = V(0.3, 0.32, 0.95), cf = CFrame.new(0, 0.04, 0.08), color = c.Body })
+	add(rig, { name = "Head", size = V(0.28, 0.36, 0.3), cf = CFrame.new(0, 0.12, -0.46) * CFrame.Angles(0.4, 0, 0), color = c.Body })
+	for _, side in { -1, 1 } do
+		add(rig, { name = "Eye", size = V(0.1, 0.12, 0.1), cf = CFrame.new(0.12 * side, 0.2, -0.5), color = Color3.fromRGB(60, 44, 30) })
+		add(rig, { name = "WingCover", size = V(0.2, 0.05, 0.75), cf = CFrame.new(0.08 * side, 0.18, 0.2), color = c.Accent })
+		-- Big jumping legs: thigh up and back to a high knee, shin down to the ground.
+		local hip = V(0.17 * side, 0.02, 0.05)
+		local knee = V(0.22 * side, 0.3, 0.45)
+		local foot = V(0.25 * side, -0.36, 0.36)
+		limb(rig, hip, knee, 0.12, c.Body, nil, side)
+		limb(rig, knee, foot, 0.05, c.Accent, nil, side)
+	end
+	antennae(rig, V(0.05, 0.25, -0.56), V(0.16, 0.45, -0.95), c.Accent, false)
+	for i, z in { -0.3, -0.1 } do
+		for _, side in { -1, 1 } do
+			local phase = ((i + (side > 0 and 1 or 0)) % 2) * math.pi
+			limb(rig, V(0.14 * side, -0.06, z), V(0.32 * side, -0.36, z - 0.06), 0.045, c.Accent, "leg", side, phase)
+		end
+	end
+end
+
+function BUILDERS.Ant(rig, bug)
+	local c = bug.Colors
+	add(rig, { name = "Body", size = V(0.18, 0.18, 0.36), cf = CFrame.new(0, 0.02, -0.15), color = c.Body, reflectance = 0.1 })
+	add(rig, { name = "Head", size = V(0.3, 0.28, 0.3), cf = CFrame.new(0, 0.05, -0.48), color = c.Body, reflectance = 0.1 })
+	add(rig, { name = "Waist", size = V(0.1, 0.1, 0.12), cf = CFrame.new(0, 0, 0.06), color = c.Body })
+	add(rig, { name = "Abdomen", size = V(0.38, 0.36, 0.5), cf = CFrame.new(0, 0.06, 0.34), color = c.Body, reflectance = 0.15 })
+	for _, side in { -1, 1 } do
+		local base = V(0.06 * side, 0.15, -0.56)
+		local elbow = V(0.16 * side, 0.3, -0.68)
+		limb(rig, base, elbow, 0.03, c.Accent, "antenna", side, side)
+		add(rig, {
+			name = "Antenna",
+			shape = "cyl",
+			size = V(0.2, 0.03, 0.03),
+			cf = along(elbow, V(0.2 * side, 0.22, -0.86)),
+			color = c.Accent,
+			kind = "antenna",
+			side = side,
+			hinge = CFrame.new(base),
+			phase = side,
+		})
+	end
+	sixLegs(rig, 0.08, -0.04, 0.42, -0.3, { { -0.24, -0.18 }, { -0.14, 0 }, { -0.04, 0.18 } }, 0.035, c.Accent)
+end
+
+function BUILDERS.Worm(rig, bug)
+	local c = bug.Colors
+	for i = 0, 6 do
+		local radius = 0.17 - i * 0.012
+		local glowing = i >= 4
+		add(rig, {
+			name = i == 0 and "Body" or "Segment",
+			size = V(radius * 2, radius * 1.8, radius * 2.1),
+			cf = CFrame.new(0, 0, -0.45 + i * 0.15),
+			color = glowing and c.Glow or c.Body,
+			material = glowing and Enum.Material.Neon or Enum.Material.SmoothPlastic,
+			kind = "segment",
+			index = i,
+			glow = glowing,
+		})
+	end
+	for _, side in { -1, 1 } do
+		add(rig, { name = "Eye", size = V(0.05, 0.05, 0.05), cf = CFrame.new(0.07 * side, 0.07, -0.58), color = DARK, kind = "segment", index = 0 })
+	end
+end
+
+-- Glowing bugs get a soft light, a faint halo and drifting sparkles.
+local function addGlow(rig, bug)
+	local glowColor = bug.Colors.Glow or BugData.Rarities[bug.Rarity].Color
+	local body = rig.model.PrimaryPart
+	-- Fireflies and glowworms glow from their tails; everything else from the body.
+	local tail = rig.glow[1]
+	local core = (tail and (tail.Name == "Lantern" or tail.Name == "Segment")) and tail or body
+	rig.light = create("PointLight", {
+		Color = glowColor,
+		Brightness = 2,
+		Range = 10,
+		Shadows = false,
+		Parent = core,
+	})
+	add(rig, {
+		name = "Halo",
+		size = V(1.2, 1.2, 1.2),
+		cf = CFrame.new(core.Position / rig.scale),
+		color = glowColor,
+		material = Enum.Material.Neon,
+		transparency = 0.9,
+	})
+	local attachment = create("Attachment", { Parent = body })
+	create("ParticleEmitter", {
+		Rate = 5,
+		Lifetime = NumberRange.new(1, 1.8),
+		Speed = NumberRange.new(0.4, 1),
+		SpreadAngle = Vector2.new(180, 180),
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.18 * rig.scale), NumberSequenceKeypoint.new(1, 0) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) }),
+		Color = ColorSequence.new(glowColor),
+		LightEmission = 1,
+		LightInfluence = 0,
+		Parent = attachment,
+	})
+end
+
+function BugBuilder.build(bug, options)
+	local rig = {
+		model = create("Model", { Name = bug.Name }),
+		parts = {},
+		glow = {},
+		rainbow = {},
+		scale = BugBuilder.scale(bug),
+		bug = bug,
+		light = nil,
+	}
+	BUILDERS[bug.Shape](rig, bug)
+	if options and options.effects and BugData.Rarities[bug.Rarity].Glow then
+		addGlow(rig, bug)
+	end
+	return rig
+end
+
+return BugBuilder
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX6">
 			<Properties>
 				<string name="Name">FieldBuilder</string>
 				<ProtectedString name="Source"><![CDATA[--[[
@@ -438,7 +1063,7 @@ local function buildFlower(parent, rng, species, position)
 	for i = 0, 2 do
 		ellipsoid(decor({
 			Name = "Petals",
-			Size = Vector3.new(0.24 * s, 0.06 * s, 0.95 * s),
+			Size = Vector3.new(0.3 * s, 0.07 * s, 1.15 * s),
 			CFrame = head * CFrame.Angles(0, i * math.pi / 3, 0),
 			Color = species.petal,
 			Material = Enum.Material.SmoothPlastic,
@@ -448,13 +1073,34 @@ local function buildFlower(parent, rng, species, position)
 	end
 	ellipsoid(decor({
 		Name = "Center",
-		Size = Vector3.new(0.32, 0.16, 0.32) * s,
+		Size = Vector3.new(0.38, 0.18, 0.38) * s,
 		CFrame = head * CFrame.new(0, 0.04 * s, 0),
 		Color = species.center,
 		Material = Enum.Material.SmoothPlastic,
 		CastShadow = false,
 		Parent = model,
 	}))
+	model.Parent = parent
+end
+
+-- A tuft of long grass blades leaning out in all directions.
+local function buildTuft(parent, rng, position)
+	local model = create("Model", { Name = "Grass" })
+	local hue = rng:NextNumber(0.24, 0.29)
+	for i = 1, 4 do
+		local height = rng:NextNumber(1.2, 2.4)
+		local yaw = i / 4 * math.pi * 2 + rng:NextNumber(-0.4, 0.4)
+		local lean = rng:NextNumber(0.15, 0.45)
+		decor({
+			Name = "Blade",
+			Size = Vector3.new(0.06, height, 0.32),
+			CFrame = CFrame.new(position) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(lean, 0, 0) * CFrame.new(0, height / 2, 0),
+			Color = Color3.fromHSV(hue, rng:NextNumber(0.5, 0.65), rng:NextNumber(0.5, 0.62)),
+			Material = Enum.Material.SmoothPlastic,
+			CastShadow = false,
+			Parent = model,
+		})
+	end
 	model.Parent = parent
 end
 
@@ -530,12 +1176,16 @@ function FieldBuilder.build(config)
 		buildRock(plants, rng, groundAt(randomPoint(rng, 18, radius + 30)))
 	end
 
+	for _ = 1, config.GrassTufts do
+		buildTuft(plants, rng, randomPoint(rng, 6, radius))
+	end
+
 	-- Flowers grow in patches of one kind, like a real meadow.
 	for _ = 1, config.FlowerPatches do
 		local species = FLOWERS[rng:NextInteger(1, #FLOWERS)]
 		local center = randomPoint(rng, 8, radius - 5)
-		local spread = rng:NextNumber(3.5, 8)
-		local count = species.name == "Sunflower" and rng:NextInteger(3, 5) or rng:NextInteger(5, 10)
+		local spread = rng:NextNumber(4, 9)
+		local count = species.name == "Sunflower" and rng:NextInteger(3, 6) or rng:NextInteger(7, 14)
 		for _ = 1, count do
 			local offset = randomPoint(rng, 0, spread)
 			buildFlower(flowers, rng, species, center + offset)
@@ -550,7 +1200,7 @@ return FieldBuilder
 ]]></ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="Script" referent="RBX5">
+		<Item class="Script" referent="RBX7">
 			<Properties>
 				<string name="Name">WorldServer</string>
 				<token name="RunContext">1</token>
@@ -668,7 +1318,7 @@ task.spawn(runWeather)
 ]]></ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="Script" referent="RBX6">
+		<Item class="Script" referent="RBX8">
 			<Properties>
 				<string name="Name">WorldClient</string>
 				<token name="RunContext">2</token>
@@ -972,6 +1622,545 @@ RunService.RenderStepped:Connect(function(dt)
 	updateLighting(dt)
 	updateRain(dt)
 	updateFootsteps(dt)
+end)
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX9">
+			<Properties>
+				<string name="Name">BugServer</string>
+				<token name="RunContext">1</token>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Bug server: spawns bugs, moves them, and decides what gets caught.
+
+	Each bug is one invisible anchored Part in Workspace.Bugs, named after
+	its bug Id. The server is the only one that moves it, so catches are
+	checked against the real position. BugVisuals draws the actual bug
+	on each player's screen and smooths its motion.
+
+	Spawning:
+	  Common bugs: any time.  Rare bugs: only at night.  Epic bugs: only in the rain.
+	  Rare bugs leave when the sun comes up, and Epic bugs leave when the rain stops.
+
+	This is a Script with RunContext = Server, so it runs from ReplicatedStorage.
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local folder = script.Parent
+local Config = require(folder:WaitForChild("Config"))
+local BugData = require(folder:WaitForChild("BugData"))
+local BugBuilder = require(folder:WaitForChild("BugBuilder"))
+local Environment = require(folder:WaitForChild("Environment"))
+local Util = require(folder:WaitForChild("Util"))
+local create = Util.create
+
+local oldFolder = Workspace:FindFirstChild("Bugs")
+if oldFolder then
+	oldFolder:Destroy()
+end
+local bugsFolder = create("Folder", { Name = "Bugs", Parent = Workspace })
+
+local rng = Random.new()
+local bugs = {} -- [anchor Part] = bug state
+local counts = { Common = 0, Rare = 0, Epic = 0 }
+local maxCounts = { Common = Config.MaxCommonBugs, Rare = Config.MaxRareBugs, Epic = Config.MaxEpicBugs }
+
+local groundParams = RaycastParams.new()
+groundParams.FilterType = Enum.RaycastFilterType.Include
+groundParams.FilterDescendantsInstances = { Workspace.Terrain }
+
+local function groundHeight(position)
+	local result = Workspace:Raycast(position + Vector3.new(0, 30, 0), Vector3.new(0, -80, 0), groundParams)
+	return result and result.Position.Y or 0
+end
+
+local function flat(v)
+	return Vector3.new(v.X, 0, v.Z)
+end
+
+local function randomDirection()
+	local angle = rng:NextNumber(0, math.pi * 2)
+	return Vector3.new(math.cos(angle), 0, math.sin(angle))
+end
+
+local function randomFieldPoint(radius)
+	return randomDirection() * math.sqrt(rng:NextNumber()) * radius
+end
+
+local function playerPositions()
+	local positions = {}
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if root and humanoid and humanoid.Health > 0 then
+			table.insert(positions, root.Position)
+		end
+	end
+	return positions
+end
+
+local function pickWanderTarget(bug)
+	local range = bug.flying and 30 or 16
+	local target = flat(bug.position) + Vector3.new(rng:NextNumber(-range, range), 0, rng:NextNumber(-range, range))
+	local limit = Config.FieldRadius * 0.92
+	if target.Magnitude > limit then
+		target = target.Unit * limit * rng:NextNumber(0.6, 1)
+	end
+	bug.target = target
+end
+
+local function spawnBug(info, positions)
+	local point
+	for _ = 1, 10 do
+		local candidate = randomFieldPoint(Config.FieldRadius * 0.9)
+		local clear = true
+		for _, position in positions do
+			if (flat(position) - candidate).Magnitude < Config.SpawnMinPlayerDistance then
+				clear = false
+				break
+			end
+		end
+		if clear then
+			point = candidate
+			break
+		end
+	end
+	if not point then
+		return nil
+	end
+
+	local flying = info.Move == "Fly"
+	local ground = groundHeight(point)
+	local bug = {
+		info = info,
+		rarity = BugData.Rarities[info.Rarity],
+		flying = flying,
+		ground = ground,
+		nextGroundCheck = 0,
+		altitude = flying and rng:NextNumber(2.5, 4.8) or 0,
+		lift = 0,
+		phase = rng:NextNumber(0, math.pi * 2),
+		heading = randomDirection(),
+		speed = 0,
+		pauseUntil = 0,
+		fleeUntil = 0,
+		fleeDirection = nil,
+		leaveAt = nil,
+		leaving = false,
+		goneAt = 0,
+	}
+	bug.position = point + Vector3.new(0, ground + (flying and bug.altitude or BugBuilder.groundOffset(info)), 0)
+	pickWanderTarget(bug)
+
+	local anchor = create("Part", {
+		Name = info.Id,
+		Anchored = true,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		CastShadow = false,
+		Transparency = 1,
+		Size = Vector3.one * 0.4,
+		CFrame = CFrame.lookAt(bug.position, bug.position + bug.heading),
+	})
+	anchor:SetAttribute("BugId", info.Id)
+	anchor.Parent = bugsFolder
+	bug.part = anchor
+	bugs[anchor] = bug
+	counts[info.Rarity] += 1
+	return bug
+end
+
+-- Removes a bug. `caught` tells clients to play the catch effect instead of a fade.
+local function removeBug(bug, caught)
+	if bugs[bug.part] ~= bug then
+		return
+	end
+	bugs[bug.part] = nil
+	counts[bug.info.Rarity] -= 1
+	if caught then
+		bug.part:SetAttribute("Caught", true)
+	end
+	-- A short delay makes sure clients see the Caught flag before the part goes.
+	task.delay(0.15, function()
+		bug.part:Destroy()
+	end)
+end
+
+local function steer(current, desired, rate, dt)
+	local blended = current:Lerp(desired, math.min(1, rate * dt))
+	if blended.Magnitude < 1e-3 then
+		return desired
+	end
+	return blended.Unit
+end
+
+local function updateBug(bug, now, dt, positions)
+	local info, rarity = bug.info, bug.rarity
+	local here = flat(bug.position)
+
+	-- Run from the nearest player who gets too close.
+	local nearest, nearestDistance = nil, math.huge
+	for _, position in positions do
+		local distance = (flat(position) - here).Magnitude
+		if distance < nearestDistance then
+			nearest, nearestDistance = position, distance
+		end
+	end
+	if nearest and nearestDistance < rarity.FleeRadius and not bug.leaving then
+		local away = here - flat(nearest)
+		bug.fleeDirection = away.Magnitude > 0.01 and away.Unit or bug.heading
+		bug.fleeUntil = now + 1.2
+		bug.pauseUntil = 0
+	end
+
+	local fleeing = now < bug.fleeUntil
+	local desired, targetSpeed, turnRate
+	if bug.leaving then
+		desired, targetSpeed, turnRate = bug.heading, info.Speed, 2
+	elseif fleeing then
+		-- Zig-zag a little so bugs feel alive and are fun to chase.
+		local wobble = math.sin(now * 3 + bug.phase) * 0.5
+		desired, targetSpeed, turnRate = CFrame.Angles(0, wobble, 0) * bug.fleeDirection, rarity.FleeSpeed, 7
+	elseif now < bug.pauseUntil then
+		desired, targetSpeed, turnRate = bug.heading, 0, 2
+	else
+		local toTarget = bug.target - here
+		if toTarget.Magnitude < 1.5 then
+			pickWanderTarget(bug)
+			if rng:NextNumber() < (bug.flying and 0.35 or 0.6) then
+				bug.pauseUntil = now + rng:NextNumber(0.6, bug.flying and 1.6 or 3)
+			end
+			toTarget = bug.target - here
+		end
+		desired = toTarget.Magnitude > 0.01 and toTarget.Unit or bug.heading
+		targetSpeed, turnRate = info.Speed, 3
+	end
+
+	-- Never leave the meadow (unless flying away for good).
+	if here.Magnitude > Config.FieldRadius and not bug.leaving then
+		desired, turnRate = -here.Unit, 6
+	end
+
+	bug.heading = steer(bug.heading, desired, turnRate, dt)
+	bug.speed += (targetSpeed - bug.speed) * math.min(1, dt * 4)
+	here += bug.heading * bug.speed * dt
+
+	if now >= bug.nextGroundCheck then
+		bug.ground = groundHeight(here + Vector3.new(0, bug.position.Y, 0))
+		bug.nextGroundCheck = now + 0.25
+	end
+
+	local y
+	if bug.flying then
+		bug.lift += ((fleeing and 1.5 or 0) - bug.lift) * math.min(1, dt * 2)
+		if bug.leaving then
+			bug.altitude += dt * 5
+		end
+		y = bug.ground + bug.altitude + bug.lift + math.sin(now * 0.9 + bug.phase) * 0.8
+	else
+		y = bug.ground + BugBuilder.groundOffset(info)
+	end
+	bug.position = Vector3.new(here.X, y, here.Z)
+	return CFrame.lookAt(bug.position, bug.position + bug.heading)
+end
+
+-- Rare bugs leave at sunrise and Epic bugs leave when the rain stops, a few at a time.
+local function updateLeaving(now, night, raining)
+	for _, bug in bugs do
+		local rarity = bug.info.Rarity
+		local belongs = (rarity ~= "Rare" or night) and (rarity ~= "Epic" or raining)
+		if bug.leaving then
+			if now >= bug.goneAt then
+				removeBug(bug, false)
+			end
+		elseif not belongs then
+			bug.leaveAt = bug.leaveAt or now + rng:NextNumber(0, 12)
+			if now >= bug.leaveAt then
+				bug.leaving = true
+				bug.goneAt = now + (bug.flying and 4 or 0)
+			end
+		else
+			bug.leaveAt = nil
+		end
+	end
+end
+
+local function trySpawn(rarity, chance, positions)
+	if counts[rarity] < maxCounts[rarity] and rng:NextNumber() < chance then
+		local options = BugData.ByRarity[rarity]
+		spawnBug(options[rng:NextInteger(1, #options)], positions)
+	end
+end
+
+local function spawnTick()
+	local positions = playerPositions()
+	trySpawn("Common", 1, positions)
+	if Environment.isNight() then
+		trySpawn("Rare", 0.6, positions)
+	end
+	if Environment.isRaining() then
+		trySpawn("Epic", 0.6, positions)
+	end
+end
+
+-- Fill the meadow with common bugs right away.
+for _ = 1, Config.MaxCommonBugs do
+	trySpawn("Common", 1, {})
+end
+
+local spawnTimer = 0
+local leaveTimer = 0
+RunService.Heartbeat:Connect(function(dt)
+	dt = math.min(dt, 0.1)
+	local now = os.clock()
+
+	spawnTimer -= dt
+	if spawnTimer <= 0 then
+		spawnTimer = Config.SpawnInterval
+		spawnTick()
+	end
+	leaveTimer -= dt
+	if leaveTimer <= 0 then
+		leaveTimer = 0.5
+		updateLeaving(now, Environment.isNight(), Environment.isRaining())
+	end
+
+	local positions = playerPositions()
+	local parts, cframes = {}, {}
+	for part, bug in bugs do
+		table.insert(parts, part)
+		table.insert(cframes, updateBug(bug, now, dt, positions))
+	end
+	if #parts > 0 then
+		Workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+	end
+end)
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX10">
+			<Properties>
+				<string name="Name">BugVisuals</string>
+				<token name="RunContext">2</token>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Bug visuals: draws every bug on this player's screen.
+
+	The server moves one invisible part per bug (Workspace.Bugs). Here each
+	part gets a full bug model that glides after it, so motion stays smooth
+	even though the server only sends positions over the network. On top of
+	that: wing flaps, scuttling legs, hops, worm wiggles, banking turns,
+	pulsing glow for rare bugs, and a sparkle burst when a bug is caught.
+
+	This is a Script with RunContext = Client, so it runs from ReplicatedStorage.
+]]
+
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local folder = script.Parent
+local BugData = require(folder:WaitForChild("BugData"))
+local BugBuilder = require(folder:WaitForChild("BugBuilder"))
+local Util = require(folder:WaitForChild("Util"))
+local create, smooth = Util.create, Util.smooth
+
+local bugsFolder = Workspace:WaitForChild("Bugs")
+local visualFolder = create("Folder", { Name = "BugVisuals", Parent = Workspace })
+
+local DRAW_DISTANCE = 420 -- the whole meadow; farther bugs freeze in place
+
+-- How each body plan flaps: frequency (flaps per second), amplitude and resting angle (radians).
+local FLAP = {
+	Butterfly = { freq = 3.2, amp = 0.62, bias = 0.38 },
+	Bee = { freq = 17, amp = 0.5, bias = 0.25 },
+	Dragonfly = { freq = 11, amp = 0.32, bias = 0.05 },
+}
+
+local visuals = {} -- [anchor Part] = visual
+
+local function addBug(anchor)
+	if not anchor:IsA("BasePart") or visuals[anchor] then
+		return
+	end
+	local bug = BugData.ById[anchor:GetAttribute("BugId") or anchor.Name]
+	if not bug then
+		return
+	end
+	local rig = BugBuilder.build(bug, { effects = true })
+	rig.model:PivotTo(anchor.CFrame) -- so it never flashes at the world origin
+	rig.model.Parent = visualFolder
+	visuals[anchor] = {
+		anchor = anchor,
+		bug = bug,
+		rig = rig,
+		cframe = anchor.CFrame,
+		lastTarget = anchor.CFrame,
+		lastUpdate = os.clock(),
+		speed = 0,
+		smoothSpeed = 0,
+		turn = 0,
+		roll = 0,
+		stride = 0,
+		phase = math.random() * math.pi * 2,
+		baseLight = rig.light and rig.light.Brightness or 0,
+	}
+end
+
+local function sparkleBurst(position, color)
+	local holder = create("Part", {
+		Anchored = true,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Transparency = 1,
+		Size = Vector3.one * 0.2,
+		CFrame = CFrame.new(position),
+		Parent = visualFolder,
+	})
+	local emitter = create("ParticleEmitter", {
+		Enabled = false,
+		Lifetime = NumberRange.new(0.5, 0.9),
+		Speed = NumberRange.new(5, 11),
+		SpreadAngle = Vector2.new(180, 180),
+		Drag = 4,
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.45), NumberSequenceKeypoint.new(1, 0) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }),
+		Color = ColorSequence.new(color, Color3.new(1, 1, 1)),
+		LightEmission = 1,
+		Parent = holder,
+	})
+	emitter:Emit(26)
+	task.delay(1.2, function()
+		holder:Destroy()
+	end)
+end
+
+local function removeBug(anchor)
+	local visual = visuals[anchor]
+	if not visual then
+		return
+	end
+	visuals[anchor] = nil
+	local model = visual.rig.model
+	if anchor:GetAttribute("Caught") then
+		sparkleBurst(visual.cframe.Position, BugData.Rarities[visual.bug.Rarity].Color)
+		model:Destroy()
+		return
+	end
+	-- Flew off or wandered out of range: fade away.
+	local info = TweenInfo.new(0.4)
+	for _, record in visual.rig.parts do
+		TweenService:Create(record.part, info, { Transparency = 1 }):Play()
+	end
+	if visual.rig.light then
+		TweenService:Create(visual.rig.light, info, { Brightness = 0 }):Play()
+	end
+	task.delay(0.45, function()
+		model:Destroy()
+	end)
+end
+
+bugsFolder.ChildAdded:Connect(addBug)
+bugsFolder.ChildRemoved:Connect(removeBug)
+for _, anchor in bugsFolder:GetChildren() do
+	addBug(anchor)
+end
+
+local function animate(visual, t, dt, parts, cframes)
+	local bug, rig = visual.bug, visual.rig
+	local s = rig.scale
+	local target = visual.anchor.CFrame
+
+	-- How fast the server is moving and turning this bug. Updates arrive less
+	-- often than frames, so measure over the time between updates.
+	local moved = (target.Position - visual.lastTarget.Position).Magnitude
+	if moved > 0 then
+		local elapsed = math.clamp(t - visual.lastUpdate, 1 / 120, 0.5)
+		local turn = visual.lastTarget.LookVector:Cross(target.LookVector).Y / elapsed
+		visual.speed = moved / elapsed
+		visual.turn = turn
+		visual.lastTarget = target
+		visual.lastUpdate = t
+	elseif t - visual.lastUpdate > 0.25 then
+		visual.speed, visual.turn = 0, 0
+	end
+	visual.smoothSpeed += (visual.speed - visual.smoothSpeed) * smooth(6, dt)
+	-- Lean into turns.
+	visual.roll += (math.clamp(-visual.turn * 0.12, -0.6, 0.6) - visual.roll) * smooth(6, dt)
+
+	-- Glide after the server position.
+	if (visual.cframe.Position - target.Position).Magnitude > 20 then
+		visual.cframe = target -- too far behind (just streamed in): snap
+	else
+		visual.cframe = visual.cframe:Lerp(target, smooth(10, dt))
+	end
+
+	local speed = visual.smoothSpeed
+	local root
+	if bug.Move == "Fly" then
+		local bob = math.sin(t * 2.4 + visual.phase) * 0.22 * s
+		local pitch = -math.min(speed / 25, 0.3)
+		root = visual.cframe * CFrame.new(0, bob, 0) * CFrame.Angles(pitch, 0, visual.roll)
+	else
+		visual.stride += dt * (speed / s) * 3
+		local hop = 0
+		if bug.Shape == "Hopper" and speed > 1 then
+			hop = math.abs(math.sin(visual.stride * 0.9)) * 0.9 * s
+		end
+		root = visual.cframe * CFrame.new(0, hop, 0)
+	end
+
+	local flap = FLAP[bug.Shape]
+	local flapRate = flap and flap.freq * (1 + math.min(speed / 12, 0.6)) or 0
+	for _, record in rig.parts do
+		local kind = record.kind
+		local cf
+		if kind == "wing" then
+			local angle = flap.bias + math.sin(t * flapRate * math.pi * 2 + record.phase + visual.phase) * flap.amp
+			cf = root * record.hinge * CFrame.Angles(0, 0, record.side * angle) * record.rel
+		elseif kind == "leg" then
+			local swing = bug.Move == "Crawl" and math.sin(visual.stride * 4 + record.phase) * 0.45 * math.min(speed, 1)
+				or math.sin(t * 2 + record.phase) * 0.08
+			cf = root * record.hinge * CFrame.Angles(0, swing, 0) * record.rel
+		elseif kind == "antenna" then
+			local twitch = math.sin(t * 3.1 + record.phase * 1.7 + visual.phase) * 0.12
+			cf = root * record.hinge * CFrame.Angles(twitch, 0, 0) * record.rel
+		elseif kind == "segment" then
+			local wave = visual.stride * 2.2 - record.index * 0.9
+			cf = root * CFrame.new(math.sin(wave) * 0.07 * s, math.max(0, math.sin(wave)) * 0.04 * s, 0) * record.rel
+		else
+			cf = root * record.rel
+		end
+		table.insert(parts, record.part)
+		table.insert(cframes, cf)
+	end
+
+	if rig.light then
+		rig.light.Brightness = visual.baseLight * (0.7 + 0.3 * math.sin(t * 2.6 + visual.phase))
+	end
+	for _, part in rig.rainbow do
+		part.Color = Color3.fromHSV((t * 0.12 + visual.phase / 6) % 1, 0.65, 1)
+	end
+end
+
+RunService.RenderStepped:Connect(function(dt)
+	local camera = Workspace.CurrentCamera
+	local cameraPosition = camera and camera.CFrame.Position or Vector3.zero
+	local t = os.clock()
+	local parts, cframes = {}, {}
+	for _, visual in visuals do
+		if (visual.anchor.Position - cameraPosition).Magnitude < DRAW_DISTANCE then
+			animate(visual, t, dt, parts, cframes)
+		end
+	end
+	if #parts > 0 then
+		Workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+	end
 end)
 ]]></ProtectedString>
 			</Properties>
