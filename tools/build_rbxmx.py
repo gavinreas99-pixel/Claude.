@@ -9,6 +9,12 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # package name -> [(file, instance name, class, RunContext)]; RunContext: 1 = Server, 2 = Client
 PACKAGES = {
+    "BugCatcher": [
+        ("Config.luau", "Config", "ModuleScript", None),
+        ("Util.luau", "Util", "ModuleScript", None),
+        ("FieldBuilder.luau", "FieldBuilder", "ModuleScript", None),
+        ("WorldServer.server.luau", "WorldServer", "Script", 1),
+    ],
     "JadeJungleGoblins": [
         ("Config.luau", "Config", "ModuleScript", None),
         ("GoblinBuilder.luau", "GoblinBuilder", "ModuleScript", None),

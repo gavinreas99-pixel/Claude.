@@ -12,6 +12,9 @@
       },
       "RealisticPistol": {
         "$path": "src/RealisticPistol"
+      },
+      "BugCatcher": {
+        "$path": "src/BugCatcher"
       }
     }
   }
