@@ -23,6 +23,7 @@ PACKAGES = {
         ("BugServer.server.luau", "BugServer", "Script", 1),
         ("BugVisuals.client.luau", "BugVisuals", "Script", 2),
         ("NetClient.client.luau", "NetClient", "Script", 2),
+        ("BookClient.client.luau", "BookClient", "Script", 2),
     ],
     "JadeJungleGoblins": [
         ("Config.luau", "Config", "ModuleScript", None),

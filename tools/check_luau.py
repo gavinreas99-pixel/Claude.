@@ -74,7 +74,8 @@ LIBS = {k: set(v.split()) for k, v in LIBS.items()}
 #   create("ClassName", { Prop = value })
 #   decor({ Prop = value })                       -> always a Part
 #   findOrCreate(parent, "ClassName", { ... })
-CREATE_FUNCS = {"create": (0, 1), "decor": ("Part", 0), "findOrCreate": (1, 2)}
+#   label({ Prop = value })                       -> always a TextLabel
+CREATE_FUNCS = {"create": (0, 1), "decor": ("Part", 0), "findOrCreate": (1, 2), "label": ("TextLabel", 0)}
 # Helpers that return an instance of the class named by one of their arguments.
 CLASS_FUNCS = {"waitForClass": 1}
 
