@@ -2402,17 +2402,15 @@ remote.OnServerEvent:Connect(function(player, action)
 	task.delay(0.18, swingNet, player, root)
 end)
 
-local function onPlayerAdded(player)
+Players.PlayerAdded:Connect(Collection.setup)
+for _, player in Players:GetPlayers() do
 	Collection.setup(player)
+	-- Spawned before the net was in StarterPack (e.g. the script loaded late): hand one over.
 	local backpack = player:FindFirstChildOfClass("Backpack")
-	if backpack and not backpack:FindFirstChild(Config.NetName) and not (player.Character and player.Character:FindFirstChild(Config.NetName)) then
+	local character = player.Character
+	if character and backpack and not backpack:FindFirstChild(Config.NetName) and not character:FindFirstChild(Config.NetName) then
 		netTemplate:Clone().Parent = backpack
 	end
-end
-
-Players.PlayerAdded:Connect(onPlayerAdded)
-for _, player in Players:GetPlayers() do
-	task.spawn(onPlayerAdded, player)
 end
 Players.PlayerRemoving:Connect(function(player)
 	lastSwing[player] = nil
