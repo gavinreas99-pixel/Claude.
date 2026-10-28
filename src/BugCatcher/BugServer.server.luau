@@ -1,5 +1,6 @@
 --[[
-	Bug server: spawns bugs, moves them, and decides what gets caught.
+	Bug server: spawns bugs, moves them, hands out bug nets and decides what
+	gets caught.
 
 	Each bug is one invisible anchored Part in Workspace.Bugs, named after
 	its bug Id. The server is the only one that moves it, so catches are
@@ -10,11 +11,16 @@
 	  Common bugs: any time.  Rare bugs: only at night.  Epic bugs: only in the rain.
 	  Rare bugs leave when the sun comes up, and Epic bugs leave when the rain stops.
 
+	Catching: a client only says "I swung". The server checks the swing rate,
+	that the player is alive and holding the net, and which bugs are really
+	inside the net's reach, so nobody can catch bugs from across the field.
+
 	This is a Script with RunContext = Server, so it runs from ReplicatedStorage.
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local StarterPack = game:GetService("StarterPack")
 local Workspace = game:GetService("Workspace")
 
 local folder = script.Parent
@@ -22,8 +28,12 @@ local Config = require(folder:WaitForChild("Config"))
 local BugData = require(folder:WaitForChild("BugData"))
 local BugBuilder = require(folder:WaitForChild("BugBuilder"))
 local Environment = require(folder:WaitForChild("Environment"))
+local Collection = require(folder:WaitForChild("Collection"))
+local NetBuilder = require(folder:WaitForChild("NetBuilder"))
 local Util = require(folder:WaitForChild("Util"))
 local create = Util.create
+
+local remote = folder:FindFirstChild("BugRemote") or create("RemoteEvent", { Name = "BugRemote", Parent = folder })
 
 local oldFolder = Workspace:FindFirstChild("Bugs")
 if oldFolder then
@@ -225,7 +235,7 @@ local function updateBug(bug, now, dt, positions)
 
 	local y
 	if bug.flying then
-		bug.lift += ((fleeing and 1.5 or 0) - bug.lift) * math.min(1, dt * 2)
+		bug.lift += ((fleeing and 1 or 0) - bug.lift) * math.min(1, dt * 2)
 		if bug.leaving then
 			bug.altitude += dt * 5
 		end
@@ -275,6 +285,87 @@ local function spawnTick()
 		trySpawn("Epic", 0.6, positions)
 	end
 end
+
+-- ------------------------------------------------------------------ the net
+
+local netTemplate = NetBuilder.build(Config)
+netTemplate.Parent = StarterPack -- copied into each player's backpack when they spawn
+
+local lastSwing = {} -- [player] = os.clock() of their last accepted swing
+
+-- Catches every bug inside the net's reach: a cylinder just in front of the player.
+local function swingNet(player, root)
+	if not root.Parent then
+		return
+	end
+	local look = flat(root.CFrame.LookVector)
+	if look.Magnitude < 0.01 then
+		return
+	end
+	look = look.Unit
+	local center = root.Position + look * Config.NetReach
+	local netY = root.Position.Y - 1
+
+	local caught = {}
+	for _, bug in bugs do
+		local sideways = (flat(bug.position) - flat(center)).Magnitude
+		local inFront = flat(bug.position - root.Position):Dot(look) > -0.5
+		if sideways <= Config.NetRadius and math.abs(bug.position.Y - netY) <= Config.NetHeight and inFront then
+			table.insert(caught, bug)
+		end
+	end
+	for _, bug in caught do
+		removeBug(bug, true)
+		local isNew, count = Collection.add(player, bug.info.Id)
+		remote:FireClient(player, "Caught", bug.info.Id, isNew, count)
+	end
+end
+
+remote.OnServerEvent:Connect(function(player, action)
+	if action ~= "Swing" then
+		return
+	end
+	local now = os.clock()
+	if now - (lastSwing[player] or 0) < Config.SwingCooldown * 0.8 then
+		return -- swinging faster than the net allows
+	end
+	local character = player.Character
+	local tool = character and character:FindFirstChild(Config.NetName)
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not (tool and tool:IsA("Tool") and root and humanoid and humanoid.Health > 0) then
+		return
+	end
+	lastSwing[player] = now
+
+	-- Everyone else sees the swing; the swinger already animated it.
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			remote:FireClient(other, "Swing", player)
+		end
+	end
+	-- Check when the net comes down, a moment into the swing.
+	task.delay(0.18, swingNet, player, root)
+end)
+
+local function onPlayerAdded(player)
+	Collection.setup(player)
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if backpack and not backpack:FindFirstChild(Config.NetName) and not (player.Character and player.Character:FindFirstChild(Config.NetName)) then
+		netTemplate:Clone().Parent = backpack
+	end
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+for _, player in Players:GetPlayers() do
+	task.spawn(onPlayerAdded, player)
+end
+Players.PlayerRemoving:Connect(function(player)
+	lastSwing[player] = nil
+	Collection.remove(player)
+end)
+
+-- ------------------------------------------------------------------ main loop
 
 -- Fill the meadow with common bugs right away.
 for _ = 1, Config.MaxCommonBugs do

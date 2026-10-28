@@ -34,8 +34,8 @@ return {
 	NetName = "Bug Net",
 	SwingCooldown = 0.55, -- seconds between swings
 	NetReach = 3.5, -- how far in front of the player the net lands
-	NetRadius = 6, -- bugs this close (sideways) to that spot get caught
-	NetHeight = 4.5, -- ...and this close vertically
+	NetRadius = 5, -- bugs this close (sideways) to that spot get caught
+	NetHeight = 5.5, -- ...and this close vertically
 
 	-- Saving -----------------------------------------------------------------
 	DataStoreName = "BugCatcher_v1",

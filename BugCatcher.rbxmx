@@ -40,8 +40,8 @@ return {
 	NetName = "Bug Net",
 	SwingCooldown = 0.55, -- seconds between swings
 	NetReach = 3.5, -- how far in front of the player the net lands
-	NetRadius = 6, -- bugs this close (sideways) to that spot get caught
-	NetHeight = 4.5, -- ...and this close vertically
+	NetRadius = 5, -- bugs this close (sideways) to that spot get caught
+	NetHeight = 5.5, -- ...and this close vertically
 
 	-- Saving -----------------------------------------------------------------
 	DataStoreName = "BugCatcher_v1",
@@ -847,6 +847,253 @@ return BugBuilder
 		</Item>
 		<Item class="ModuleScript" referent="RBX6">
 			<Properties>
+				<string name="Name">NetBuilder</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	NetBuilder: builds the bug net Tool.
+
+	Layout (the Handle's own space): the pole runs along +Y, the hand holds
+	it 1 stud below the Handle's centre, and the hoop sits on top facing -Z
+	with the mesh bag trailing behind it (+Z). Tool.Grip tilts the pole
+	forward so the net is held up and ready.
+
+	Usage (server):
+		local net = NetBuilder.build(Config)
+		net.Parent = game:GetService("StarterPack")
+]]
+
+local Util = require(script.Parent:WaitForChild("Util"))
+local create, ellipsoid = Util.create, Util.ellipsoid
+
+local NetBuilder = {}
+
+local WOOD = Color3.fromRGB(150, 104, 62)
+local GRIP = Color3.fromRGB(70, 46, 34)
+local METAL = Color3.fromRGB(200, 204, 210)
+local MESH = Color3.fromRGB(246, 246, 238)
+
+local POLE_LENGTH = 4.6
+local HOOP_RADIUS = 1.15
+NetBuilder.HoopCenter = Vector3.new(0, POLE_LENGTH / 2 + HOOP_RADIUS, 0)
+
+function NetBuilder.build(config)
+	local tool = create("Tool", {
+		Name = config.NetName,
+		ToolTip = "Click or tap to swing",
+		CanBeDropped = false,
+		RequiresHandle = true,
+		-- Hold the pole leaning 55 degrees forward, gripped 1 stud below its middle.
+		Grip = (CFrame.Angles(math.rad(-55), 0, 0) * CFrame.new(0, 1, 0)):Inverse(),
+	})
+
+	local handle = create("Part", {
+		Name = "Handle",
+		Size = Vector3.new(0.2, POLE_LENGTH, 0.2),
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Massless = true,
+		CFrame = CFrame.identity,
+		Parent = tool,
+	})
+
+	local function piece(props)
+		local part = create("Part", {
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			Massless = true,
+			TopSurface = Enum.SurfaceType.Smooth,
+			BottomSurface = Enum.SurfaceType.Smooth,
+		})
+		for key, value in props do
+			part[key] = value
+		end
+		part.Parent = tool
+		create("WeldConstraint", { Part0 = handle, Part1 = part, Parent = part })
+		return part
+	end
+
+	local alongY = CFrame.Angles(0, 0, math.pi / 2) -- turns a cylinder's X axis to +Y
+
+	piece({
+		Name = "Pole",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(POLE_LENGTH, 0.2, 0.2),
+		CFrame = alongY,
+		Color = WOOD,
+		Material = Enum.Material.Wood,
+	})
+	piece({
+		Name = "GripWrap",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1.1, 0.27, 0.27),
+		CFrame = CFrame.new(0, -1, 0) * alongY,
+		Color = GRIP,
+		Material = Enum.Material.Fabric,
+	})
+	piece({
+		Name = "EndCap",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.one * 0.3,
+		CFrame = CFrame.new(0, -POLE_LENGTH / 2, 0),
+		Color = GRIP,
+	})
+	piece({
+		Name = "Collar",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.4, 0.26, 0.26),
+		CFrame = CFrame.new(0, POLE_LENGTH / 2 - 0.1, 0) * alongY,
+		Color = METAL,
+		Material = Enum.Material.Metal,
+	})
+
+	-- The hoop: a ring of short metal segments.
+	local center = NetBuilder.HoopCenter
+	local segments = 18
+	for i = 1, segments do
+		local angle = i / segments * math.pi * 2
+		local position = center + Vector3.new(math.cos(angle), math.sin(angle), 0) * HOOP_RADIUS
+		piece({
+			Name = "Hoop",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(2 * math.pi * HOOP_RADIUS / segments * 1.12, 0.11, 0.11),
+			CFrame = CFrame.new(position) * CFrame.Angles(0, 0, angle + math.pi / 2),
+			Color = METAL,
+			Material = Enum.Material.Metal,
+		})
+	end
+
+	-- The mesh bag trails behind the hoop: a wide mouth tapering to a drooping tip.
+	for _, bag in {
+		{ name = "Bag", size = Vector3.new(HOOP_RADIUS * 1.9, HOOP_RADIUS * 1.9, 1.3), offset = Vector3.new(0, -0.05, 0.5) },
+		{ name = "BagTip", size = Vector3.new(1.25, 1.2, 1.7), offset = Vector3.new(0, -0.35, 1.3) },
+	} do
+		ellipsoid(piece({
+			Name = bag.name,
+			Size = bag.size,
+			CFrame = CFrame.new(center + bag.offset),
+			Color = MESH,
+			Material = Enum.Material.Fabric,
+			Transparency = 0.4,
+			CastShadow = false,
+		}))
+	end
+
+	-- A faint swoosh trail drawn by the hoop during a swing (switched on by NetClient).
+	local a0 = create("Attachment", { Name = "TrailBottom", Position = center - Vector3.new(0, HOOP_RADIUS, 0), Parent = handle })
+	local a1 = create("Attachment", { Name = "TrailTop", Position = center + Vector3.new(0, HOOP_RADIUS, 0), Parent = handle })
+	create("Trail", {
+		Name = "SwingTrail",
+		Attachment0 = a0,
+		Attachment1 = a1,
+		Enabled = false,
+		Lifetime = 0.18,
+		MinLength = 0.05,
+		FaceCamera = true,
+		LightEmission = 0.3,
+		Color = ColorSequence.new(Color3.new(1, 1, 1)),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(1, 1) }),
+		Parent = handle,
+	})
+
+	create("Sound", {
+		Name = "SwingSound",
+		SoundId = config.Sounds.Swing,
+		Volume = 0.55,
+		PlaybackSpeed = 1.25,
+		RollOffMaxDistance = 60,
+		Parent = handle,
+	})
+
+	return tool
+end
+
+return NetBuilder
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX7">
+			<Properties>
+				<string name="Name">Collection</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Collection (server only): which bugs each player has caught.
+
+	The server is the only one that changes it. Each player's collection is
+	shared with clients as a JSON attribute on the Player ("BugCollection"),
+	which the collection book reads, and as a "Bugs" leaderboard stat
+	(how many different bugs they've found).
+]]
+
+local HttpService = game:GetService("HttpService")
+
+local folder = script.Parent
+local BugData = require(folder:WaitForChild("BugData"))
+local Util = require(folder:WaitForChild("Util"))
+local create = Util.create
+
+local Collection = {}
+
+local profiles = {} -- [player] = { caught = { [bugId] = timesCaught } }
+
+local function uniqueCount(caught)
+	local count = 0
+	for bugId in caught do
+		if BugData.ById[bugId] then
+			count += 1
+		end
+	end
+	return count
+end
+
+-- Sends the collection to clients and updates the leaderboard.
+local function publish(player, profile)
+	player:SetAttribute("BugCollection", HttpService:JSONEncode(profile.caught))
+	local stats = player:FindFirstChild("leaderstats")
+	local found = stats and stats:FindFirstChild("Bugs")
+	if found then
+		found.Value = uniqueCount(profile.caught)
+	end
+end
+
+function Collection.setup(player)
+	if profiles[player] then
+		return profiles[player]
+	end
+	local profile = { caught = {} }
+	profiles[player] = profile
+	local stats = player:FindFirstChild("leaderstats") or create("Folder", { Name = "leaderstats", Parent = player })
+	if not stats:FindFirstChild("Bugs") then
+		create("IntValue", { Name = "Bugs", Parent = stats })
+	end
+	publish(player, profile)
+	return profile
+end
+
+function Collection.get(player)
+	return profiles[player]
+end
+
+-- Records a catch. Returns whether it's a new bug for this player and how many they've caught.
+function Collection.add(player, bugId)
+	local profile = profiles[player] or Collection.setup(player)
+	local count = (profile.caught[bugId] or 0) + 1
+	profile.caught[bugId] = count
+	profile.dirty = true
+	publish(player, profile)
+	return count == 1, count
+end
+
+function Collection.remove(player)
+	profiles[player] = nil
+end
+
+return Collection
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX8">
+			<Properties>
 				<string name="Name">FieldBuilder</string>
 				<ProtectedString name="Source"><![CDATA[--[[
 	FieldBuilder
@@ -1200,7 +1447,7 @@ return FieldBuilder
 ]]></ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="Script" referent="RBX7">
+		<Item class="Script" referent="RBX9">
 			<Properties>
 				<string name="Name">WorldServer</string>
 				<token name="RunContext">1</token>
@@ -1318,7 +1565,7 @@ task.spawn(runWeather)
 ]]></ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="Script" referent="RBX8">
+		<Item class="Script" referent="RBX10">
 			<Properties>
 				<string name="Name">WorldClient</string>
 				<token name="RunContext">2</token>
@@ -1626,12 +1873,13 @@ end)
 ]]></ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="Script" referent="RBX9">
+		<Item class="Script" referent="RBX11">
 			<Properties>
 				<string name="Name">BugServer</string>
 				<token name="RunContext">1</token>
 				<ProtectedString name="Source"><![CDATA[--[[
-	Bug server: spawns bugs, moves them, and decides what gets caught.
+	Bug server: spawns bugs, moves them, hands out bug nets and decides what
+	gets caught.
 
 	Each bug is one invisible anchored Part in Workspace.Bugs, named after
 	its bug Id. The server is the only one that moves it, so catches are
@@ -1642,11 +1890,16 @@ end)
 	  Common bugs: any time.  Rare bugs: only at night.  Epic bugs: only in the rain.
 	  Rare bugs leave when the sun comes up, and Epic bugs leave when the rain stops.
 
+	Catching: a client only says "I swung". The server checks the swing rate,
+	that the player is alive and holding the net, and which bugs are really
+	inside the net's reach, so nobody can catch bugs from across the field.
+
 	This is a Script with RunContext = Server, so it runs from ReplicatedStorage.
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local StarterPack = game:GetService("StarterPack")
 local Workspace = game:GetService("Workspace")
 
 local folder = script.Parent
@@ -1654,8 +1907,12 @@ local Config = require(folder:WaitForChild("Config"))
 local BugData = require(folder:WaitForChild("BugData"))
 local BugBuilder = require(folder:WaitForChild("BugBuilder"))
 local Environment = require(folder:WaitForChild("Environment"))
+local Collection = require(folder:WaitForChild("Collection"))
+local NetBuilder = require(folder:WaitForChild("NetBuilder"))
 local Util = require(folder:WaitForChild("Util"))
 local create = Util.create
+
+local remote = folder:FindFirstChild("BugRemote") or create("RemoteEvent", { Name = "BugRemote", Parent = folder })
 
 local oldFolder = Workspace:FindFirstChild("Bugs")
 if oldFolder then
@@ -1857,7 +2114,7 @@ local function updateBug(bug, now, dt, positions)
 
 	local y
 	if bug.flying then
-		bug.lift += ((fleeing and 1.5 or 0) - bug.lift) * math.min(1, dt * 2)
+		bug.lift += ((fleeing and 1 or 0) - bug.lift) * math.min(1, dt * 2)
 		if bug.leaving then
 			bug.altitude += dt * 5
 		end
@@ -1908,6 +2165,87 @@ local function spawnTick()
 	end
 end
 
+-- ------------------------------------------------------------------ the net
+
+local netTemplate = NetBuilder.build(Config)
+netTemplate.Parent = StarterPack -- copied into each player's backpack when they spawn
+
+local lastSwing = {} -- [player] = os.clock() of their last accepted swing
+
+-- Catches every bug inside the net's reach: a cylinder just in front of the player.
+local function swingNet(player, root)
+	if not root.Parent then
+		return
+	end
+	local look = flat(root.CFrame.LookVector)
+	if look.Magnitude < 0.01 then
+		return
+	end
+	look = look.Unit
+	local center = root.Position + look * Config.NetReach
+	local netY = root.Position.Y - 1
+
+	local caught = {}
+	for _, bug in bugs do
+		local sideways = (flat(bug.position) - flat(center)).Magnitude
+		local inFront = flat(bug.position - root.Position):Dot(look) > -0.5
+		if sideways <= Config.NetRadius and math.abs(bug.position.Y - netY) <= Config.NetHeight and inFront then
+			table.insert(caught, bug)
+		end
+	end
+	for _, bug in caught do
+		removeBug(bug, true)
+		local isNew, count = Collection.add(player, bug.info.Id)
+		remote:FireClient(player, "Caught", bug.info.Id, isNew, count)
+	end
+end
+
+remote.OnServerEvent:Connect(function(player, action)
+	if action ~= "Swing" then
+		return
+	end
+	local now = os.clock()
+	if now - (lastSwing[player] or 0) < Config.SwingCooldown * 0.8 then
+		return -- swinging faster than the net allows
+	end
+	local character = player.Character
+	local tool = character and character:FindFirstChild(Config.NetName)
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not (tool and tool:IsA("Tool") and root and humanoid and humanoid.Health > 0) then
+		return
+	end
+	lastSwing[player] = now
+
+	-- Everyone else sees the swing; the swinger already animated it.
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			remote:FireClient(other, "Swing", player)
+		end
+	end
+	-- Check when the net comes down, a moment into the swing.
+	task.delay(0.18, swingNet, player, root)
+end)
+
+local function onPlayerAdded(player)
+	Collection.setup(player)
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if backpack and not backpack:FindFirstChild(Config.NetName) and not (player.Character and player.Character:FindFirstChild(Config.NetName)) then
+		netTemplate:Clone().Parent = backpack
+	end
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+for _, player in Players:GetPlayers() do
+	task.spawn(onPlayerAdded, player)
+end
+Players.PlayerRemoving:Connect(function(player)
+	lastSwing[player] = nil
+	Collection.remove(player)
+end)
+
+-- ------------------------------------------------------------------ main loop
+
 -- Fill the meadow with common bugs right away.
 for _ = 1, Config.MaxCommonBugs do
 	trySpawn("Common", 1, {})
@@ -1943,7 +2281,7 @@ end)
 ]]></ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="Script" referent="RBX10">
+		<Item class="Script" referent="RBX12">
 			<Properties>
 				<string name="Name">BugVisuals</string>
 				<token name="RunContext">2</token>
@@ -2160,6 +2498,164 @@ RunService.RenderStepped:Connect(function(dt)
 	end
 	if #parts > 0 then
 		Workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+	end
+end)
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX13">
+			<Properties>
+				<string name="Name">NetClient</string>
+				<token name="RunContext">2</token>
+				<ProtectedString name="Source"><![CDATA[--[[
+	Net client: swinging the bug net.
+
+	Click (PC), tap (mobile) or press the trigger (gamepad) while holding the
+	net. The swing plays right away on your screen, then the server checks
+	what you caught. Other players' swings are animated here too, and
+	catches play a sound.
+
+	The swing moves the right shoulder joint locally, so it works on R15 and
+	R6 characters without any uploaded animations.
+
+	This is a Script with RunContext = Client, so it runs from ReplicatedStorage.
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
+
+local folder = script.Parent
+local Config = require(folder:WaitForChild("Config"))
+local Util = require(folder:WaitForChild("Util"))
+local remote = folder:WaitForChild("BugRemote")
+
+local player = Players.LocalPlayer
+
+local SWING_TIME = 0.5
+
+-- Shoulder angle (radians, + raises the arm) over the swing: wind up, sweep down, recover.
+local function swingAngle(t)
+	if t < 0.1 then
+		local a = t / 0.1
+		return 0.8 * (1 - (1 - a) ^ 2)
+	elseif t < 0.24 then
+		local a = (t - 0.1) / 0.14
+		local eased = a < 0.5 and 2 * a * a or 1 - (-2 * a + 2) ^ 2 / 2
+		return 0.8 - 1.95 * eased
+	end
+	local a = math.min((t - 0.24) / (SWING_TIME - 0.24), 1)
+	return -1.15 * (1 - a) ^ 2
+end
+
+local swings = {} -- [character] = { motor, baseC0, axis, started, trail }
+
+local function findShoulder(character)
+	local arm = character:FindFirstChild("RightUpperArm")
+	local motor = arm and arm:FindFirstChild("RightShoulder")
+	if not motor then
+		local torso = character:FindFirstChild("Torso")
+		motor = torso and torso:FindFirstChild("Right Shoulder")
+	end
+	return motor and motor:IsA("Motor6D") and motor or nil
+end
+
+local function playSwing(character)
+	local tool = character:FindFirstChild(Config.NetName)
+	local motor = findShoulder(character)
+	if not tool or not motor then
+		return
+	end
+	local handle = tool:FindFirstChild("Handle")
+	local existing = swings[character]
+	local baseC0 = existing and existing.baseC0 or motor.C0
+	-- Pitch around the torso's sideways axis, expressed in the joint's own frame.
+	local axis = baseC0.Rotation:VectorToObjectSpace(Vector3.xAxis)
+	local trail = handle and handle:FindFirstChild("SwingTrail")
+	swings[character] = { motor = motor, baseC0 = baseC0, axis = axis, started = os.clock(), trail = trail }
+
+	local sound = handle and handle:FindFirstChild("SwingSound")
+	if sound and sound:IsA("Sound") then
+		sound.PlaybackSpeed = 1.15 + math.random() * 0.2
+		sound:Play()
+	end
+end
+
+RunService.RenderStepped:Connect(function()
+	local now = os.clock()
+	for character, swing in swings do
+		local t = now - swing.started
+		if t >= SWING_TIME or not swing.motor.Parent then
+			swing.motor.C0 = swing.baseC0
+			if swing.trail then
+				swing.trail.Enabled = false
+			end
+			swings[character] = nil
+		else
+			swing.motor.C0 = swing.baseC0 * CFrame.fromAxisAngle(swing.axis, swingAngle(t))
+			if swing.trail then
+				swing.trail.Enabled = t > 0.08 and t < 0.3
+			end
+		end
+	end
+end)
+
+-- ------------------------------------------------------------------ your own net
+
+local lastSwing = 0
+
+local function hookTool(tool)
+	if not tool:IsA("Tool") or tool.Name ~= Config.NetName or tool:GetAttribute("Hooked") then
+		return
+	end
+	tool:SetAttribute("Hooked", true)
+	tool.Activated:Connect(function()
+		local now = os.clock()
+		local character = player.Character
+		if now - lastSwing < Config.SwingCooldown or not character or tool.Parent ~= character then
+			return
+		end
+		lastSwing = now
+		playSwing(character)
+		remote:FireServer("Swing")
+	end)
+end
+
+local function onCharacter(character)
+	character.ChildAdded:Connect(hookTool)
+	for _, child in character:GetChildren() do
+		hookTool(child)
+	end
+	-- Equip the net straight away so players can start catching.
+	task.defer(function()
+		local backpack = player:WaitForChild("Backpack", 10)
+		local net = backpack and backpack:WaitForChild(Config.NetName, 10)
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if net and humanoid and not character:FindFirstChildOfClass("Tool") and net.Parent == backpack then
+			humanoid:EquipTool(net)
+		end
+	end)
+end
+
+player.CharacterAdded:Connect(onCharacter)
+if player.Character then
+	onCharacter(player.Character)
+end
+
+-- ------------------------------------------------------------------ server messages
+
+remote.OnClientEvent:Connect(function(action, ...)
+	if action == "Swing" then
+		local swinger = ...
+		if typeof(swinger) == "Instance" and swinger ~= player and swinger.Character then
+			playSwing(swinger.Character)
+		end
+	elseif action == "Caught" then
+		local _, isNew = ...
+		Util.playSound(Config.Sounds.Catch, SoundService, 0.7, isNew and 1 or 1.15)
+		if isNew then
+			Util.playSound(Config.Sounds.NewBug, SoundService, 0.5)
+		end
 	end
 end)
 ]]></ProtectedString>
