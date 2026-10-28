@@ -75,6 +75,8 @@ LIBS = {k: set(v.split()) for k, v in LIBS.items()}
 #   decor({ Prop = value })                       -> always a Part
 #   findOrCreate(parent, "ClassName", { ... })
 CREATE_FUNCS = {"create": (0, 1), "decor": ("Part", 0), "findOrCreate": (1, 2)}
+# Helpers that return an instance of the class named by one of their arguments.
+CLASS_FUNCS = {"waitForClass": 1}
 
 
 class CheckError(Exception):
@@ -621,6 +623,10 @@ class Parser:
                             self.check_prop_write(cls, key, kline)
                     else:
                         cls = None
+                elif fn.lvalue == "name" and fn.key in CLASS_FUNCS and len(args) > CLASS_FUNCS[fn.key] \
+                        and isinstance(args[CLASS_FUNCS[fn.key]].string, str):
+                    cls = args[CLASS_FUNCS[fn.key]].string
+                    self.check_class(cls, line)
                 val = Val(call=True, cls=cls)
             else:
                 return val

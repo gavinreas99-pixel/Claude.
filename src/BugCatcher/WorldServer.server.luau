@@ -1,5 +1,6 @@
 --[[
-	World server: builds the meadow and sets up realistic lighting.
+	World server: builds the meadow, sets up realistic lighting, starts the
+	day/night clock and decides when it rains. WorldClient does the visuals.
 	This is a Script with RunContext = Server, so it runs from ReplicatedStorage.
 ]]
 
@@ -8,6 +9,7 @@ local Workspace = game:GetService("Workspace")
 
 local folder = script.Parent
 local Config = require(folder:WaitForChild("Config"))
+local Environment = require(folder:WaitForChild("Environment"))
 local FieldBuilder = require(folder:WaitForChild("FieldBuilder"))
 local Util = require(folder:WaitForChild("Util"))
 local create = Util.create
@@ -83,5 +85,27 @@ local function setupLighting()
 	})
 end
 
+-- Day/night: clients and the bug spawner work out the time from this one value.
+local function startClock()
+	local sunrise = Workspace:GetServerTimeNow() - Environment.secondsAfterSunrise(Config.StartClockTime)
+	folder:SetAttribute("SunriseTime", sunrise)
+end
+
+-- Weather: every so often there's a chance of a shower.
+local function runWeather()
+	local rng = Random.new()
+	folder:SetAttribute("Raining", false)
+	while true do
+		task.wait(Config.RainCheckSeconds)
+		if rng:NextNumber() < Config.RainChance then
+			folder:SetAttribute("Raining", true)
+			task.wait(rng:NextNumber(Config.RainSeconds[1], Config.RainSeconds[2]))
+			folder:SetAttribute("Raining", false)
+		end
+	end
+end
+
 setupLighting()
+startClock()
 FieldBuilder.build(Config)
+task.spawn(runWeather)

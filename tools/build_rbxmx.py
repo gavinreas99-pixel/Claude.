@@ -12,8 +12,10 @@ PACKAGES = {
     "BugCatcher": [
         ("Config.luau", "Config", "ModuleScript", None),
         ("Util.luau", "Util", "ModuleScript", None),
+        ("Environment.luau", "Environment", "ModuleScript", None),
         ("FieldBuilder.luau", "FieldBuilder", "ModuleScript", None),
         ("WorldServer.server.luau", "WorldServer", "Script", 1),
+        ("WorldClient.client.luau", "WorldClient", "Script", 2),
     ],
     "JadeJungleGoblins": [
         ("Config.luau", "Config", "ModuleScript", None),
